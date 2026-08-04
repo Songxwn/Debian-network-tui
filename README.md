@@ -45,8 +45,8 @@ Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tu
 
 ```bash
 # amd64 example
-tar -xzf debian-network-tui-v0.2.0-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.2.0-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.3-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.3-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
@@ -118,6 +118,33 @@ For SSH setup (option 10), place beside the binary:
 - `openssh-server_*.deb` (optional; otherwise apt is used)
 - `ssh-root.conf` (optional) with `PubkeyFile=root.pub`
 - `root.pub` — your OpenSSH public key (see `examples/`)
+
+### SSH setup — internal logic
+
+After confirming **Configure SSH server (root key)**, the tool runs this pipeline (`internal/sshsetup`):
+
+```mermaid
+flowchart TD
+  A[Confirm] --> B[Resolve binary directory]
+  B --> C{openssh-server*.deb present?}
+  C -->|yes| D[apt-get install local .deb]
+  C -->|no| E[apt-get install -y openssh-server]
+  D --> F[Resolve pubkey via ssh-root.conf]
+  E --> F
+  F --> G[Parse pubkey lines]
+  G --> H[Write sshd drop-in]
+  H --> I[Append /root/.ssh/authorized_keys]
+  I --> J[systemctl restart ssh]
+  J --> K[Done]
+```
+
+1. **Install** — scan the binary directory for `openssh-server*.deb`; if found, `apt-get install` those files; otherwise `apt-get install -y openssh-server`.
+2. **Pubkey** — read optional `ssh-root.conf` (`PubkeyFile=...`), else try `root.pub` / `id_rsa.pub` / `id_ed25519.pub` / `authorized_keys`. Only valid OpenSSH pubkey lines are used.
+3. **sshd** — write `/etc/ssh/sshd_config.d/99-debian-network-tui-rootkey.conf` with `PermitRootLogin prohibit-password`, `PubkeyAuthentication yes`, `AuthorizedKeysFile .ssh/authorized_keys` (root key-only login; no password).
+4. **authorized_keys** — ensure `/root/.ssh` (`700`), append missing keys to `/root/.ssh/authorized_keys` (`600`), never wipe existing keys.
+5. **Restart** — `systemctl restart ssh`, fallback `sshd`, then `service ssh restart`.
+
+**Security:** ensure `root.pub` is yours; after `prohibit-password`, root password login is disabled.
 
 For options 8–9, place an apt sources file next to the binary (see `examples/sources.list`):
 

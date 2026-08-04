@@ -139,6 +139,92 @@ PubkeyFile=root.pub
 - `root.pub`：OpenSSH 公钥内容  
   示例：`examples/ssh-root.conf`、`examples/root.pub`
 
+### SSH 配置内部逻辑说明
+
+菜单项 **Configure SSH server (root key)** 确认后，按以下顺序执行（实现见 `internal/sshsetup`）：
+
+```mermaid
+flowchart TD
+  A[确认执行] --> B[定位程序所在目录]
+  B --> C{目录内有 openssh-server*.deb ?}
+  C -->|是| D[apt-get install 本地 .deb]
+  C -->|否| E[apt-get install -y openssh-server]
+  D --> F[读取公钥配置]
+  E --> F
+  F --> G[解析公钥文件]
+  G --> H[写入 sshd drop-in]
+  H --> I[导入 /root/.ssh/authorized_keys]
+  I --> J[systemctl restart ssh]
+  J --> K[完成]
+```
+
+#### 1. 安装 openssh-server
+
+1. 取当前可执行文件所在目录（解析符号链接后）。
+2. 扫描该目录下文件名包含 `openssh-server`（或同时包含 `openssh` 与 `server`）的 `.deb`。
+3. **若找到本地包**：`apt-get install -y --allow-downgrades <deb路径...>`（`DEBIAN_FRONTEND=noninteractive`）。
+4. **若未找到**：`apt-get install -y openssh-server`（依赖当前 apt 源可用）。
+
+#### 2. 解析公钥来源
+
+优先读取同目录下的 `ssh-root.conf`（可选）：
+
+| 配置键（不区分大小写） | 含义 |
+|------------------------|------|
+| `PubkeyFile` / `Pubkey` / `PublicKeyFile` | 公钥文件路径（相对程序目录或绝对路径） |
+
+未配置或文件不存在时，按顺序尝试：
+
+1. `PubkeyFile` 指定路径  
+2. `root.pub`  
+3. `id_rsa.pub`  
+4. `id_ed25519.pub`  
+5. `authorized_keys`  
+
+任一存在即采用；全部缺失则报错退出（不继续改 sshd）。
+
+公钥文件中：跳过空行与 `#` 注释；仅接受以 `ssh-rsa`、`ssh-ed25519`、`ecdsa-sha2-*` 等类型开头的行。
+
+#### 3. 配置 sshd（root 仅密钥登录）
+
+写入 drop-in（不直接改主配置，便于卸载/覆盖）：
+
+路径：`/etc/ssh/sshd_config.d/99-debian-network-tui-rootkey.conf`
+
+```
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+```
+
+含义：
+
+- `prohibit-password`：允许 root 远程登录，但**禁止密码**，只接受公钥。
+- 依赖 Debian 默认 `Include /etc/ssh/sshd_config.d/*.conf`。
+
+#### 4. 导入 root 公钥
+
+1. 确保目录 `/root/.ssh` 存在，权限 `700`。
+2. 读取已有 `/root/.ssh/authorized_keys`，按完整行去重。
+3. 将新公钥**追加**写入（不删除原有密钥）。
+4. 文件权限设为 `600`。
+
+#### 5. 重启服务
+
+依次尝试：
+
+1. `systemctl restart ssh`（Debian 单元名）  
+2. 失败则 `systemctl restart sshd`  
+3. 无 systemctl 时：`service ssh restart`  
+
+任一步失败会返回错误（此时包与配置可能已写入，需人工检查）。
+
+#### 安全提示
+
+- 请确认 `root.pub` 中是你自己的公钥，误导入他人密钥等于开放 root。
+- `prohibit-password` 后 root **不能再用密码**登录；请先保证密钥可用或保留其他管理员账号。
+- 若系统使用云镜像自定义 sshd，请确认 `sshd_config.d` 会被加载。
+
 ## 配置示例：Bond + VLAN
 
 ```
