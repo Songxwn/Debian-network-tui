@@ -178,7 +178,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 	placeholders := [inCount]string{
 		"auto: parent.vlanid",
 		"",
-		"VLAN ID 2-4094",
+		"e.g. 100",
 		"",
 		"miimon ms",
 		"lacp-rate: fast|slow",
@@ -189,7 +189,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		"IPv6 address/prefix",
 		"IPv6 gateway",
 	}
-	widths := [inCount]int{24, 8, 10, 8, 10, 12, 24, 24, 24, 40, 40, 40}
+	widths := [inCount]int{24, 8, 16, 8, 10, 12, 24, 24, 24, 40, 40, 40}
 
 	m.inputs = make([]textinput.Model, inCount)
 	for i := 0; i < inCount; i++ {
@@ -197,6 +197,9 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		ti.Placeholder = placeholders[i]
 		ti.SetValue(vals[i])
 		ti.CharLimit = 128
+		if i == inVLANID {
+			ti.CharLimit = 4
+		}
 		ti.Width = widths[i]
 		m.inputs[i] = ti
 	}
@@ -622,6 +625,7 @@ func (m Model) viewEditForm() string {
 		}
 		b.WriteString(subtleStyle.Render("  Selected parent: "+sel) + "\n")
 		b.WriteString(row(fVLANID, "VLAN ID", m.inputs[inVLANID].View()))
+		b.WriteString(subtleStyle.Render("  Valid VLAN ID range: 2-4094") + "\n")
 	case interfaces.TypeBond:
 		b.WriteString(row(fName, "Device", m.inputs[inName].View()))
 		b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
