@@ -5,6 +5,16 @@ Written in Go, with an **nmtui-like** workflow for **ifupdown** (including `sour
 
 All UI text is English so it works on minimal installs without CJK fonts.
 
+## Screenshots
+
+### Main menu
+
+![Main menu](docs/main-menu.png)
+
+### Add bond (select UP NICs as slaves)
+
+![Add bond](docs/add-bond.png)
+
 ## Features
 
 - Lists **all system interfaces** (not only ones already in the config file)
