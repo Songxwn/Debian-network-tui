@@ -335,16 +335,11 @@ func backupFile(path string) error {
 	return nil
 }
 
-// NewConnection builds a default DHCP connection.
+// NewConnection builds an unconfigured connection (IPv4 disabled by default).
 func NewConnection(name string) *Connection {
 	return &Connection{
 		Name:         name,
 		AllowHotplug: true,
-		IPv4: &Iface{
-			Name:   name,
-			Family: FamilyInet,
-			Method: MethodDHCP,
-		},
 	}
 }
 

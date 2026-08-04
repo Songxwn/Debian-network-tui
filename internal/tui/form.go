@@ -127,11 +127,8 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		}
 	} else if ctype == interfaces.TypeBond {
 		m.ipv4Method = 2 // manual default for bond
-	} else if ctype == interfaces.TypeEthernet || ctype == interfaces.TypeVLAN {
-		if isNew {
-			m.ipv4Method = 0 // dhcp
-		}
 	}
+	// New ethernet/vlan keep ipv4Method=disabled (3).
 
 	m.ipv6Method = 0
 	if c.IPv6 != nil {

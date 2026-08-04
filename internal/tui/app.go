@@ -438,15 +438,7 @@ func (m Model) updateAddType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 0:
 			m.startEditForm(interfaces.NewConnection(""), true, interfaces.TypeEthernet)
 		case 1:
-			c := &interfaces.Connection{
-				Name:         "",
-				AllowHotplug: true,
-				IPv4: &interfaces.Iface{
-					Name:   "",
-					Family: interfaces.FamilyInet,
-					Method: interfaces.MethodStatic,
-				},
-			}
+			c := interfaces.NewConnection("")
 			m.startEditForm(c, true, interfaces.TypeVLAN)
 		case 2:
 			c := &interfaces.Connection{
