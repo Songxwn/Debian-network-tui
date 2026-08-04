@@ -13,7 +13,7 @@ import (
 // unrelated content. Creates a timestamped backup before writing.
 func (f *File) SaveConnection(conn *Connection) error {
 	if conn == nil || conn.Name == "" {
-		return fmt.Errorf("无效的连接")
+		return fmt.Errorf("invalid connection")
 	}
 	f.applyConnection(conn)
 	return f.writeAtomic(f.Path)
@@ -22,7 +22,7 @@ func (f *File) SaveConnection(conn *Connection) error {
 // DeleteConnection removes auto/allow-hotplug/iface stanzas for name.
 func (f *File) DeleteConnection(name string) error {
 	if name == "" || name == "lo" {
-		return fmt.Errorf("不能删除接口 %q", name)
+		return fmt.Errorf("cannot delete interface %q", name)
 	}
 	var kept []Stanza
 	for _, s := range f.Stanzas {
@@ -180,14 +180,14 @@ func (f *File) writeAtomic(path string) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".interfaces-*.tmp")
 	if err != nil {
-		return fmt.Errorf("创建临时文件失败: %w", err)
+		return fmt.Errorf("create temp file: %w", err)
 	}
 	tmpName := tmp.Name()
 	defer func() { _ = os.Remove(tmpName) }()
 
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("写入临时文件失败: %w", err)
+		return fmt.Errorf("write temp file: %w", err)
 	}
 	if err := tmp.Chmod(0o644); err != nil {
 		// Non-fatal on some FS
@@ -197,7 +197,7 @@ func (f *File) writeAtomic(path string) error {
 		return err
 	}
 	if err := os.Rename(tmpName, path); err != nil {
-		return fmt.Errorf("替换配置文件失败: %w", err)
+		return fmt.Errorf("replace config file: %w", err)
 	}
 	return nil
 }
@@ -208,11 +208,11 @@ func backupFile(path string) error {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("备份读取失败: %w", err)
+		return fmt.Errorf("read for backup: %w", err)
 	}
 	bak := fmt.Sprintf("%s.bak.%s", path, time.Now().Format("20060102-150405"))
 	if err := os.WriteFile(bak, data, 0o644); err != nil {
-		return fmt.Errorf("写入备份失败: %w", err)
+		return fmt.Errorf("write backup: %w", err)
 	}
 	return nil
 }

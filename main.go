@@ -10,7 +10,7 @@ import (
 	"github.com/debian-network-tui/debian-network-tui/internal/tui"
 )
 
-// Set by goreleaser / CI via -ldflags "-X main.version=...".
+// Set by CI via -ldflags "-X main.version=...".
 var version = "dev"
 
 func main() {
@@ -20,7 +20,7 @@ func main() {
 	}
 
 	if err := requireRoot(); err != nil {
-		fmt.Fprintf(os.Stderr, "警告: %v\n建议使用 root 权限运行: sudo debian-network-tui\n\n", err)
+		fmt.Fprintf(os.Stderr, "Warning: %v\nRun as root: sudo debian-network-tui\n\n", err)
 	}
 
 	cfgPath := "/etc/network/interfaces"
@@ -31,7 +31,7 @@ func main() {
 	m := tui.New(cfgPath)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Fprintf(os.Stderr, "程序异常退出: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Fatal error: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -39,10 +39,10 @@ func main() {
 func requireRoot() error {
 	u, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("无法获取当前用户: %w", err)
+		return fmt.Errorf("cannot determine current user: %w", err)
 	}
 	if u.Uid != "0" {
-		return fmt.Errorf("当前用户不是 root (uid=%s)", u.Uid)
+		return fmt.Errorf("not running as root (uid=%s)", u.Uid)
 	}
 	return nil
 }

@@ -22,7 +22,7 @@ type Device struct {
 func ListDevices() ([]Device, error) {
 	entries, err := os.ReadDir("/sys/class/net")
 	if err != nil {
-		return nil, fmt.Errorf("读取网卡列表失败: %w", err)
+		return nil, fmt.Errorf("list network devices: %w", err)
 	}
 	var out []Device
 	for _, e := range entries {
@@ -90,26 +90,24 @@ func runIfCmd(bin, name string) error {
 	msg := strings.TrimSpace(string(out))
 	if err != nil {
 		if msg == "" {
-			return fmt.Errorf("%s %s 失败: %w", bin, name, err)
+			return fmt.Errorf("%s %s failed: %w", bin, name, err)
 		}
-		return fmt.Errorf("%s %s 失败: %s", bin, name, msg)
+		return fmt.Errorf("%s %s failed: %s", bin, name, msg)
 	}
 	return nil
 }
 
-// ReloadNetworking restarts networking via systemctl when available,
-// otherwise falls back to ifdown -a / ifup -a carefully — we only
-// offer a soft hint command: networking restart.
+// ReloadNetworking restarts networking via systemctl when available.
 func ReloadNetworking() error {
 	if _, err := exec.LookPath("systemctl"); err == nil {
 		cmd := exec.Command("systemctl", "restart", "networking")
 		out, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("systemctl restart networking 失败: %s", strings.TrimSpace(string(out)))
+			return fmt.Errorf("systemctl restart networking failed: %s", strings.TrimSpace(string(out)))
 		}
 		return nil
 	}
-	return fmt.Errorf("未找到 systemctl，请手动执行 ifdown/ifup")
+	return fmt.Errorf("systemctl not found; run ifdown/ifup manually")
 }
 
 // ParseProcNetDev lists interface names from /proc/net/dev (fallback).

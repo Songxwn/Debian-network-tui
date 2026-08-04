@@ -25,7 +25,7 @@ func load(path string, seen map[string]bool) (*File, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("读取 %s: %w", path, err)
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 
 	f := &File{Path: path}

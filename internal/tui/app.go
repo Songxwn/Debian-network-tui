@@ -71,10 +71,10 @@ type Model struct {
 }
 
 var menuItems = []string{
-	"编辑连接 (Edit a connection)",
-	"激活连接 (Activate a connection)",
-	"停用连接 (Deactivate a connection)",
-	"退出 (Quit)",
+	"Edit a connection",
+	"Activate a connection",
+	"Deactivate a connection",
+	"Quit",
 }
 
 func New(cfgPath string) Model {
@@ -157,11 +157,11 @@ func (m Model) View() string {
 	case screenMessage:
 		body = m.viewMessage()
 	default:
-		body = "未知界面"
+		body = "Unknown screen"
 	}
 
 	header := titleStyle.Render("debian-network-tui") + "  " +
-		subtleStyle.Render("管理 /etc/network/interfaces · Debian 11–13")
+		subtleStyle.Render("Manage /etc/network/interfaces · Debian 11–13")
 	footer := m.viewFooter()
 	status := ""
 	if m.status != "" {
@@ -183,13 +183,13 @@ func (m Model) View() string {
 
 func (m Model) viewFooter() string {
 	hints := map[screen]string{
-		screenMenu:       "↑/↓ 选择  Enter 确认  q 退出",
-		screenEditList:   "↑/↓ 选择  Enter 编辑  a 新建  d 删除  Esc 返回",
-		screenEditForm:   "Tab 切换字段  ←/→ 改选项  Ctrl+S 保存  Esc 取消",
-		screenActivate:   "↑/↓ 选择  Enter 激活  Esc 返回",
-		screenDeactivate: "↑/↓ 选择  Enter 停用  Esc 返回",
-		screenConfirm:    "y 确认  n/Esc 取消",
-		screenMessage:    "Enter/Esc 返回",
+		screenMenu:       "Up/Down select  Enter confirm  q quit",
+		screenEditList:   "Up/Down select  Enter edit  a add  d delete  Esc back",
+		screenEditForm:   "Tab next field  Left/Right toggle  Ctrl+S save  Esc cancel",
+		screenActivate:   "Up/Down select  Enter activate  Esc back",
+		screenDeactivate: "Up/Down select  Enter deactivate  Esc back",
+		screenConfirm:    "y confirm  n/Esc cancel",
+		screenMessage:    "Enter/Esc back",
 	}
 	h := hints[m.screen]
 	path := subtleStyle.Render(m.cfgPath)
@@ -233,7 +233,7 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewMenu() string {
 	var b strings.Builder
-	b.WriteString(sectionStyle.Render("主菜单") + "\n\n")
+	b.WriteString(sectionStyle.Render("Main Menu") + "\n\n")
 	for i, item := range menuItems {
 		cursor := "  "
 		style := itemStyle
@@ -269,7 +269,7 @@ func (m Model) updateEditList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		name := m.conns[m.listIdx].Name
 		if name == "lo" {
-			m.status = "不能删除 lo 接口"
+			m.status = "Cannot delete lo interface"
 			return m, nil
 		}
 		m.confirm = confirmDelete
@@ -287,9 +287,9 @@ func (m Model) updateEditList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewEditList() string {
 	var b strings.Builder
-	b.WriteString(sectionStyle.Render("编辑连接") + "\n\n")
+	b.WriteString(sectionStyle.Render("Edit a connection") + "\n\n")
 	if len(m.conns) == 0 {
-		b.WriteString(subtleStyle.Render("  (无连接，按 a 新建)") + "\n")
+		b.WriteString(subtleStyle.Render("  (No connections — press a to add)") + "\n")
 		return b.String()
 	}
 	for i, c := range m.conns {

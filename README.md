@@ -1,48 +1,51 @@
 # debian-network-tui
 
-面向 **Debian 11 / 12 / 13** 的终端网卡配置工具，用 Go 编写，交互风格接近 `nmtui`，直接管理 **ifupdown** 的 `/etc/network/interfaces`（含 `source` / `source-directory`）。
+A terminal UI for managing `/etc/network/interfaces` on **Debian 11 / 12 / 13**.
+Written in Go, with an **nmtui-like** workflow for **ifupdown** (including `source` / `source-directory`).
 
-## 功能
+All UI text is English so it works on minimal installs without CJK fonts.
 
-- 编辑连接：新建 / 修改 / 删除 iface 配置
-- IPv4：`dhcp` / `static` / 禁用
-- IPv6：`disabled` / `dhcp` / `static` / `auto`（`manual` + `accept_ra 1`）
-- `auto`、`allow-hotplug` 开关
-- 静态地址、掩码、网关、`dns-nameservers`
-- 激活 / 停用：调用 `ifup` / `ifdown`
-- 保存前自动备份为 `/etc/network/interfaces.bak.<时间戳>`
+## Features
 
-不依赖 NetworkManager，适合服务器与最小化安装。
+- Edit connections: add / modify / delete iface stanzas
+- IPv4: `dhcp` / `static` / disabled
+- IPv6: `disabled` / `dhcp` / `static` / `auto` (`manual` + `accept_ra 1`)
+- `auto` and `allow-hotplug` toggles
+- Static address, netmask, gateway, `dns-nameservers`
+- Activate / deactivate via `ifup` / `ifdown`
+- Automatic backup to `/etc/network/interfaces.bak.<timestamp>` before save
 
-## 依赖
+No NetworkManager dependency — suitable for servers and minimal installs.
 
-- Go 1.21+（仅编译时）
-- 运行时：`ifupdown`（`ifup`/`ifdown`）、`iproute2`（`ip`）
-- root 权限（读写 `/etc/network/interfaces`）
+## Requirements
 
-## 下载
+- Go 1.21+ (build time only)
+- Runtime: `ifupdown` (`ifup`/`ifdown`), `iproute2` (`ip`)
+- Root privileges (read/write `/etc/network/interfaces`)
 
-从 [GitHub Releases](https://github.com/Songxwn/Debian-network-tui/releases) 下载对应架构的二进制包，例如：
+## Download
+
+Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tui/releases):
 
 ```bash
-# amd64 示例
-tar -xzf debian-network-tui-v0.1.0-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.1.0-linux-amd64 /usr/local/bin/debian-network-tui
+# amd64 example
+tar -xzf debian-network-tui-v0.1.1-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.1.1-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
-打 `v*` 标签推送后，GitHub Actions 会自动编译并发布 Release。
+Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
 
-## 编译
+## Build
 
 ```bash
 git clone https://github.com/Songxwn/Debian-network-tui.git
 cd Debian-network-tui
 go mod tidy
 make build
-# 产物: bin/debian-network-tui
+# output: bin/debian-network-tui
 ```
 
-交叉编译：
+Cross-compile:
 
 ```bash
 make cross
@@ -50,37 +53,37 @@ make cross
 # bin/debian-network-tui-linux-arm64
 ```
 
-## 使用
+## Usage
 
 ```bash
-sudo ./bin/debian-network-tui
+sudo debian-network-tui
 ```
 
-指定配置文件（测试用）：
+Override config path (for testing):
 
 ```bash
-sudo INTERFACES_FILE=/tmp/interfaces ./bin/debian-network-tui
+sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 ```
 
-### 快捷键
+### Key bindings
 
-| 界面     | 按键 |
-|----------|------|
-| 主菜单   | `↑/↓` 选择，`Enter` 确认，`q` 退出 |
-| 连接列表 | `a` 新建，`d` 删除，`Enter` 编辑，`Esc` 返回 |
-| 编辑表单 | `Tab` 切换字段，`←/→` 改选项，`Ctrl+S` 保存，`Esc` 取消 |
-| 确认框   | `y` / `n` |
+| Screen       | Keys |
+|--------------|------|
+| Main menu    | `Up/Down` select, `Enter` confirm, `q` quit |
+| Connection list | `a` add, `d` delete, `Enter` edit, `Esc` back |
+| Edit form    | `Tab` next field, `Left/Right` toggle, `Ctrl+S` save, `Esc` cancel |
+| Confirm      | `y` / `n` |
 
-### 主菜单（对照 nmtui）
+### Main menu (nmtui-like)
 
-1. **编辑连接** — 修改 interfaces 配置  
-2. **激活连接** — `ifup <iface>`  
-3. **停用连接** — `ifdown <iface>`  
-4. **退出**
+1. **Edit a connection** — edit interfaces config
+2. **Activate a connection** — `ifup <iface>`
+3. **Deactivate a connection** — `ifdown <iface>`
+4. **Quit**
 
-## 配置示例
+## Example config
 
-保存 static IPv4 后大致会写入：
+After saving a static IPv4 connection:
 
 ```
 # Managed by debian-network-tui: eth0
@@ -92,19 +95,19 @@ iface eth0 inet static
     dns-nameservers 8.8.8.8 1.1.1.1
 ```
 
-## 注意
+## Notes
 
-- 修改配置后需在菜单中「激活连接」，或手动 `ifup <iface>` / `systemctl restart networking`
-- 远程 SSH 操作时，停用当前网卡可能导致断连
-- `lo` 不允许删除
-- 写入只更新主配置文件；`interfaces.d/` 中已有连接可查看，编辑会合并进主文件（原 sourced 片段需自行清理）
+- After editing, use **Activate a connection**, or run `ifup <iface>` / `systemctl restart networking`
+- Deactivating the active NIC over SSH may disconnect you
+- `lo` cannot be deleted
+- Writes update the main config file; connections that only exist under `interfaces.d/` are visible, but edits are merged into the main file (clean up old sourced snippets manually if needed)
 
-## 测试
+## Test
 
 ```bash
 go test ./...
 ```
 
-## 许可证
+## License
 
 MIT

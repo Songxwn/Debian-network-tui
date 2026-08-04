@@ -76,13 +76,13 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool) {
 		value       string
 		width       int
 	}{
-		{"接口名，如 eth0 / ens18", c.Name, 24},
-		{"IPv4 地址", "", 24},
-		{"子网掩码，如 255.255.255.0", "", 24},
-		{"默认网关", "", 24},
-		{"DNS，空格分隔", "", 40},
-		{"IPv6 地址/前缀，如 2001:db8::1/64", "", 40},
-		{"IPv6 网关", "", 40},
+		{"iface name, e.g. eth0 / ens18", c.Name, 24},
+		{"IPv4 address", "", 24},
+		{"netmask, e.g. 255.255.255.0", "", 24},
+		{"default gateway", "", 24},
+		{"DNS servers, space-separated", "", 40},
+		{"IPv6 address/prefix, e.g. 2001:db8::1/64", "", 40},
+		{"IPv6 gateway", "", 40},
 	}
 	if c.IPv4 != nil {
 		labels[1].value = c.IPv4.GetOption("address")
@@ -201,9 +201,9 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) viewEditForm() string {
 	var b strings.Builder
-	title := "编辑连接"
+	title := "Edit connection"
 	if m.editNew {
-		title = "新建连接"
+		title = "Add connection"
 	}
 	b.WriteString(sectionStyle.Render(title) + "\n\n")
 
@@ -219,35 +219,35 @@ func (m Model) viewEditForm() string {
 
 	boolStr := func(v bool) string {
 		if v {
-			return "[x] 是"
+			return "[x] Yes"
 		}
-		return "[ ] 否"
+		return "[ ] No"
 	}
 
-	b.WriteString(row(fName, "接口名", m.inputs[0].View()))
-	b.WriteString(row(fAuto, "开机自启", boolStr(m.autoOn)))
-	b.WriteString(row(fHotplug, "热插拔", boolStr(m.hotplugOn)))
+	b.WriteString(row(fName, "Device", m.inputs[0].View()))
+	b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
+	b.WriteString(row(fHotplug, "Hotplug", boolStr(m.hotplugOn)))
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render("  —— IPv4 ——") + "\n")
-	b.WriteString(row(fIPv4Method, "方式", "< "+ipv4Methods[m.ipv4Method]+" >"))
-	b.WriteString(row(fAddress, "地址", m.inputs[1].View()))
-	b.WriteString(row(fNetmask, "掩码", m.inputs[2].View()))
-	b.WriteString(row(fGateway, "网关", m.inputs[3].View()))
+	b.WriteString(row(fIPv4Method, "Method", "< "+ipv4Methods[m.ipv4Method]+" >"))
+	b.WriteString(row(fAddress, "Address", m.inputs[1].View()))
+	b.WriteString(row(fNetmask, "Netmask", m.inputs[2].View()))
+	b.WriteString(row(fGateway, "Gateway", m.inputs[3].View()))
 	b.WriteString(row(fDNS, "DNS", m.inputs[4].View()))
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render("  —— IPv6 ——") + "\n")
-	b.WriteString(row(fIPv6Method, "方式", "< "+ipv6Methods[m.ipv6Method]+" >"))
-	b.WriteString(row(fV6Address, "地址", m.inputs[5].View()))
-	b.WriteString(row(fV6Gateway, "网关", m.inputs[6].View()))
+	b.WriteString(row(fIPv6Method, "Method", "< "+ipv6Methods[m.ipv6Method]+" >"))
+	b.WriteString(row(fV6Address, "Address", m.inputs[5].View()))
+	b.WriteString(row(fV6Gateway, "Gateway", m.inputs[6].View()))
 	b.WriteString("\n")
-	b.WriteString(subtleStyle.Render("  Ctrl+S 保存配置（会自动备份原文件）") + "\n")
+	b.WriteString(subtleStyle.Render("  Ctrl+S to save (original file is backed up automatically)") + "\n")
 	return b.String()
 }
 
 func (m *Model) buildConnFromForm() (*interfaces.Connection, error) {
 	name := strings.TrimSpace(m.inputs[0].Value())
 	if name == "" {
-		return nil, fmt.Errorf("接口名不能为空")
+		return nil, fmt.Errorf("interface name is required")
 	}
 	c := &interfaces.Connection{
 		Name:         name,
@@ -337,7 +337,7 @@ func (m Model) updateActList(msg tea.KeyMsg, activate bool) (tea.Model, tea.Cmd)
 		}
 	case "enter", " ":
 		if len(names) == 0 {
-			m.status = "没有可操作的接口"
+			m.status = "No interfaces available"
 			return m, nil
 		}
 		m.confirmN = names[m.actIdx]
@@ -352,15 +352,15 @@ func (m Model) updateActList(msg tea.KeyMsg, activate bool) (tea.Model, tea.Cmd)
 }
 
 func (m Model) viewActList(activate bool) string {
-	title := "激活连接"
+	title := "Activate a connection"
 	if !activate {
-		title = "停用连接"
+		title = "Deactivate a connection"
 	}
 	names := m.actCandidates(activate)
 	var b strings.Builder
 	b.WriteString(sectionStyle.Render(title) + "\n\n")
 	if len(names) == 0 {
-		b.WriteString(subtleStyle.Render("  (无可操作接口)") + "\n")
+		b.WriteString(subtleStyle.Render("  (No interfaces available)") + "\n")
 		return b.String()
 	}
 	for i, n := range names {
@@ -422,11 +422,11 @@ func (m *Model) backFromConfirm(yes bool) {
 	switch action {
 	case confirmDelete:
 		if err := m.file.DeleteConnection(name); err != nil {
-			m.showMsg("删除失败", err.Error(), screenEditList)
+			m.showMsg("Delete failed", err.Error(), screenEditList)
 			return
 		}
 		m.reload()
-		m.showMsg("已删除", "已删除连接 "+name+"\n备份文件已生成。", screenEditList)
+		m.showMsg("Deleted", "Removed connection "+name+"\nA backup was created.", screenEditList)
 	case confirmSave:
 		c, err := m.buildConnFromForm()
 		if err != nil {
@@ -435,25 +435,25 @@ func (m *Model) backFromConfirm(yes bool) {
 			return
 		}
 		if err := m.file.SaveConnection(c); err != nil {
-			m.showMsg("保存失败", err.Error(), screenEditForm)
+			m.showMsg("Save failed", err.Error(), screenEditForm)
 			return
 		}
 		m.reload()
-		m.showMsg("已保存", fmt.Sprintf("连接 %s 已写入 %s\n已自动备份原文件。\n使用「激活连接」使配置生效。", c.Name, m.cfgPath), screenEditList)
+		m.showMsg("Saved", fmt.Sprintf("Connection %s written to %s\nOriginal file was backed up.\nUse \"Activate a connection\" to apply.", c.Name, m.cfgPath), screenEditList)
 	case confirmActivate:
 		if err := netdev.IfUp(name); err != nil {
-			m.showMsg("激活失败", err.Error(), screenActivate)
+			m.showMsg("Activate failed", err.Error(), screenActivate)
 			return
 		}
 		m.reload()
-		m.showMsg("已激活", "接口 "+name+" 已执行 ifup。", screenActivate)
+		m.showMsg("Activated", "Ran ifup "+name+".", screenActivate)
 	case confirmDeactivate:
 		if err := netdev.IfDown(name); err != nil {
-			m.showMsg("停用失败", err.Error(), screenDeactivate)
+			m.showMsg("Deactivate failed", err.Error(), screenDeactivate)
 			return
 		}
 		m.reload()
-		m.showMsg("已停用", "接口 "+name+" 已执行 ifdown。", screenDeactivate)
+		m.showMsg("Deactivated", "Ran ifdown "+name+".", screenDeactivate)
 	}
 }
 
@@ -477,16 +477,16 @@ func (m Model) viewConfirm() string {
 	var text string
 	switch m.confirm {
 	case confirmDelete:
-		text = fmt.Sprintf("确认删除连接 %q ？\n将从 %s 移除相关配置。", m.confirmN, m.cfgPath)
+		text = fmt.Sprintf("Delete connection %q?\nRelated stanzas will be removed from %s.", m.confirmN, m.cfgPath)
 	case confirmSave:
-		text = fmt.Sprintf("确认保存到 %s ？\n保存前会自动备份。", m.cfgPath)
+		text = fmt.Sprintf("Save to %s?\nA backup will be created first.", m.cfgPath)
 	case confirmActivate:
-		text = fmt.Sprintf("确认执行 ifup %s ？", m.confirmN)
+		text = fmt.Sprintf("Run ifup %s?", m.confirmN)
 	case confirmDeactivate:
-		text = fmt.Sprintf("确认执行 ifdown %s ？\n可能导致网络中断。", m.confirmN)
+		text = fmt.Sprintf("Run ifdown %s?\nThis may interrupt network connectivity.", m.confirmN)
 	}
-	return sectionStyle.Render("请确认") + "\n\n" + itemStyle.Render(text) + "\n\n" +
-		selectedStyle.Render("  [y] 是    [n] 否")
+	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
+		selectedStyle.Render("  [y] Yes    [n] No")
 }
 
 func (m Model) viewMessage() string {
