@@ -5,6 +5,8 @@ Written in Go, with an **nmtui-like** workflow for **ifupdown** (including `sour
 
 All UI text is English so it works on minimal installs without CJK fonts.
 
+**中文说明：[README_ZH.md](README_ZH.md)**
+
 ## Screenshots
 
 ### Main menu
