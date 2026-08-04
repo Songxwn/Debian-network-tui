@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/debian-network-tui/debian-network-tui/internal/aptsources"
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
@@ -928,6 +929,10 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenMenu
 		case confirmInstallDebs:
 			m.screen = screenMenu
+		case confirmClearAptSources:
+			m.screen = screenMenu
+		case confirmApplyAptSources:
+			m.screen = screenMenu
 		default:
 			m.screen = screenMenu
 		}
@@ -999,12 +1004,27 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.showMsg("Install failed", body, screenMenu)
 			return
 		}
-		// Truncate very long apt output for the TUI.
 		if len(msg) > 1200 {
 			msg = msg[len(msg)-1200:]
 			msg = "...\n" + msg
 		}
 		m.showMsg("Install complete", "Installed local packages with apt:\n"+msg, screenMenu)
+	case confirmClearAptSources:
+		note, err := aptsources.Default().Clear()
+		if err != nil {
+			m.showMsg("Clear apt sources failed", err.Error()+"\n"+note, screenMenu)
+			return
+		}
+		m.showMsg("Apt sources cleared", note+"\n\nRun apt-get update after applying new sources.", screenMenu)
+	case confirmApplyAptSources:
+		cfgs := append([]aptsources.LocalConfig{}, m.pendingAptCfgs...)
+		m.pendingAptCfgs = nil
+		note, err := aptsources.Default().Apply(cfgs)
+		if err != nil {
+			m.showMsg("Apply apt sources failed", err.Error()+"\n"+note, screenMenu)
+			return
+		}
+		m.showMsg("Apt sources applied", note+"\n\nSuggested: apt-get update", screenMenu)
 	}
 }
 
@@ -1046,6 +1066,19 @@ func (m Model) viewConfirm() string {
 		}
 		text = fmt.Sprintf("Install local packages with apt from:\n%s\n\n%s\n\nRun: apt-get install -y <debs>",
 			m.pendingDebDir, strings.Join(names, "\n"))
+	case confirmClearAptSources:
+		text = "Clear ALL apt source configuration?\n\n/etc/apt/sources.list will be emptied\n(with backup).\nAll .list / .sources in sources.list.d\nwill be backed up and removed.\n\nPackage installs may fail until new\nsources are applied."
+	case confirmApplyAptSources:
+		var lines []string
+		for _, c := range m.pendingAptCfgs {
+			dest := "/etc/apt/sources.list"
+			if !c.IsPrimary {
+				dest = "/etc/apt/sources.list.d/" + c.TargetRel
+			}
+			lines = append(lines, fmt.Sprintf("%s → %s", filepath.Base(c.Path), dest))
+		}
+		text = fmt.Sprintf("Apply apt sources from:\n%s\n\n%s\n\nExisting targets are backed up first.",
+			m.pendingAptDir, strings.Join(lines, "\n"))
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")

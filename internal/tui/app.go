@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/debian-network-tui/debian-network-tui/internal/aptsources"
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
@@ -38,6 +39,8 @@ const (
 	confirmRestartNetworking
 	confirmClearAll
 	confirmInstallDebs
+	confirmClearAptSources
+	confirmApplyAptSources
 )
 
 // Model is the root Bubble Tea model.
@@ -80,6 +83,9 @@ type Model struct {
 	pendingDebs   []string
 	pendingDebDir string
 
+	pendingAptCfgs []aptsources.LocalConfig
+	pendingAptDir  string
+
 	status   string
 	errMsg   string
 	confirm  confirmAction
@@ -102,6 +108,8 @@ var menuItems = []string{
 	"Restart networking",
 	"Clear all connections",
 	"Install ifenslave/vlan (.deb)",
+	"Clear apt sources",
+	"Apply apt sources from file",
 	"Quit",
 }
 
@@ -342,6 +350,30 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirm = confirmInstallDebs
 			m.screen = screenConfirm
 		case 6:
+			m.confirm = confirmClearAptSources
+			m.screen = screenConfirm
+		case 7:
+			dir, err := packages.SelfDir()
+			if err != nil {
+				m.showMsg("Apply failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			cfgs, err := aptsources.FindLocalConfigs(dir)
+			if err != nil {
+				m.showMsg("Apply failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			if len(cfgs) == 0 {
+				m.showMsg("No apt source files",
+					fmt.Sprintf("Searched: %s\n\nPlace one of:\n  sources.list\n  apt-sources.list\n  *.list / *.sources\n  sources.list.d/*\nnext to this binary.\nSee examples/sources.list", dir),
+					screenMenu)
+				return m, nil
+			}
+			m.pendingAptDir = dir
+			m.pendingAptCfgs = cfgs
+			m.confirm = confirmApplyAptSources
+			m.screen = screenConfirm
+		case 8:
 			return m, tea.Quit
 		}
 	}

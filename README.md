@@ -102,9 +102,17 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 4. **Restart networking** — `systemctl restart networking`
 5. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
 6. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
-7. **Quit**
+7. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
+8. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
+9. **Quit**
 
 Place matching `.deb` files in the same directory as `debian-network-tui` before using option 6.
+
+For options 7–8, place an apt sources file next to the binary (see `examples/sources.list`):
+
+- `sources.list` or `apt-sources.list` → `/etc/apt/sources.list`
+- `*.list` / `*.sources` → `/etc/apt/sources.list.d/`
+- or files under `sources.list.d/` beside the binary
 
 ## Example: bond + VLAN
 
