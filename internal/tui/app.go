@@ -70,6 +70,11 @@ type Model struct {
 	bondSelected   map[string]bool
 	bondSlaveIdx   int
 
+	// VLAN parent picker (single-select from UP NICs / bonds).
+	vlanParentCandidates []string
+	vlanParentSelected   string
+	vlanParentIdx        int
+
 	status   string
 	errMsg   string
 	confirm  confirmAction

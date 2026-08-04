@@ -35,12 +35,12 @@ const (
 	fCount
 )
 
-// Text input slots (bond slaves use a checklist, not a text field):
-// 0 name, 1 vlan parent, 2 vlan id, 3 unused, 4 bond miimon, 5 bond lacp,
+// Text input slots (VLAN parent / bond slaves use pickers, not text fields):
+// 0 name, 1 unused, 2 vlan id, 3 unused, 4 bond miimon, 5 bond lacp,
 // 6 v4 addr, 7 netmask, 8 gateway, 9 dns, 10 v6 addr, 11 v6 gateway
 const (
 	inName = iota
-	inVLANParent
+	inUnusedParent
 	inVLANID
 	inUnusedSlaves
 	inBondMiimon
@@ -55,12 +55,15 @@ const (
 )
 
 func (m *Model) visibleFields() []int {
-	fields := []int{fName, fAuto, fHotplug}
+	fields := []int{fAuto, fHotplug}
 	switch m.editType {
 	case interfaces.TypeVLAN:
-		fields = append(fields, fVLANParent, fVLANID)
+		fields = append([]int{fVLANParent, fVLANID}, fields...)
 	case interfaces.TypeBond:
+		fields = append([]int{fName}, fields...)
 		fields = append(fields, fBondSlaves, fBondMode, fBondMiimon, fBondLacp)
+	default:
+		fields = append([]int{fName}, fields...)
 	}
 	fields = append(fields,
 		fIPv4Method, fAddress, fNetmask, fGateway, fDNS,
@@ -91,6 +94,12 @@ func (m *Model) setFocusByVisible(delta int) {
 		m.refreshBondCandidates()
 		if m.bondSlaveIdx >= len(m.bondCandidates) {
 			m.bondSlaveIdx = 0
+		}
+	}
+	if m.formFocus == fVLANParent {
+		m.refreshVLANParentCandidates()
+		if m.vlanParentIdx >= len(m.vlanParentCandidates) {
+			m.vlanParentIdx = 0
 		}
 	}
 	m.syncInputFocus()
@@ -149,7 +158,6 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 
 	vals := make([]string, inCount)
 	vals[inName] = c.Name
-	vals[inVLANParent] = c.VLANParent()
 	vals[inVLANID] = c.VLANID()
 	vals[inBondMiimon] = "100"
 	vals[inBondLacp] = "fast"
@@ -171,8 +179,8 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 	}
 
 	placeholders := [inCount]string{
-		"eth0 / ens18 / bond0",
-		"parent: eth0 or bond0",
+		"auto: parent.vlanid",
+		"",
 		"VLAN ID 1-4094",
 		"",
 		"miimon ms",
@@ -184,7 +192,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		"IPv6 address/prefix",
 		"IPv6 gateway",
 	}
-	widths := [inCount]int{24, 24, 10, 8, 10, 12, 24, 24, 24, 40, 40, 40}
+	widths := [inCount]int{24, 8, 10, 8, 10, 12, 24, 24, 24, 40, 40, 40}
 
 	m.inputs = make([]textinput.Model, inCount)
 	for i := 0; i < inCount; i++ {
@@ -197,6 +205,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 	}
 
 	m.initBondSlavePicker(c.BondSlaves())
+	m.initVLANParentPicker(c.VLANParent())
 
 	m.formFocus = fName
 	if ctype == interfaces.TypeVLAN {
@@ -297,12 +306,66 @@ func (m *Model) toggleBondSlaveAt(idx int) {
 	m.bondSelected[name] = !m.bondSelected[name]
 }
 
+// initVLANParentPicker builds a single-select list of UP parents (ethernet or bond).
+func (m *Model) initVLANParentPicker(preselected string) {
+	m.vlanParentSelected = strings.TrimSpace(preselected)
+	m.vlanParentIdx = 0
+	m.refreshVLANParentCandidates()
+	if m.vlanParentSelected != "" {
+		for i, name := range m.vlanParentCandidates {
+			if name == m.vlanParentSelected {
+				m.vlanParentIdx = i
+				break
+			}
+		}
+	}
+}
+
+func (m *Model) refreshVLANParentCandidates() {
+	seen := map[string]bool{}
+	var cands []string
+	for _, d := range m.devices {
+		if d.IsLoop || d.Name == "" {
+			continue
+		}
+		// Parents may be ethernet or bond; skip existing VLANs/bridges.
+		switch d.Kind {
+		case "vlan", "bridge":
+			continue
+		}
+		up := strings.EqualFold(d.State, "up") || netdev.IsUp(d.Name)
+		if !up && d.Name != m.vlanParentSelected {
+			continue
+		}
+		cands = append(cands, d.Name)
+		seen[d.Name] = true
+	}
+	if m.vlanParentSelected != "" && !seen[m.vlanParentSelected] {
+		cands = append(cands, m.vlanParentSelected)
+	}
+	sort.Strings(cands)
+	m.vlanParentCandidates = cands
+	if len(cands) == 0 {
+		m.vlanParentIdx = 0
+		return
+	}
+	if m.vlanParentIdx >= len(cands) {
+		m.vlanParentIdx = len(cands) - 1
+	}
+}
+
+func (m *Model) selectVLANParentAt(idx int) {
+	if idx < 0 || idx >= len(m.vlanParentCandidates) {
+		return
+	}
+	m.vlanParentSelected = m.vlanParentCandidates[idx]
+	m.maybeRefreshVLANName()
+}
+
 func inputIndex(focus int) int {
 	switch focus {
 	case fName:
 		return inName
-	case fVLANParent:
-		return inVLANParent
 	case fVLANID:
 		return inVLANID
 	case fBondMiimon:
@@ -341,7 +404,7 @@ func (m *Model) maybeRefreshVLANName() {
 	if m.editType != interfaces.TypeVLAN {
 		return
 	}
-	parent := strings.TrimSpace(m.inputs[inVLANParent].Value())
+	parent := strings.TrimSpace(m.vlanParentSelected)
 	id := strings.TrimSpace(m.inputs[inVLANID].Value())
 	if parent != "" && id != "" {
 		m.inputs[inName].SetValue(parent + "." + id)
@@ -379,6 +442,18 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFocusByVisible(1)
 			return m, nil
 		}
+		if m.formFocus == fVLANParent {
+			if len(m.vlanParentCandidates) == 0 {
+				m.setFocusByVisible(1)
+				return m, nil
+			}
+			if m.vlanParentIdx < len(m.vlanParentCandidates)-1 {
+				m.vlanParentIdx++
+				return m, nil
+			}
+			m.setFocusByVisible(1)
+			return m, nil
+		}
 		m.setFocusByVisible(1)
 		return m, nil
 	case "up", "k":
@@ -390,11 +465,23 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.setFocusByVisible(-1)
 			return m, nil
 		}
+		if m.formFocus == fVLANParent {
+			if m.vlanParentIdx > 0 {
+				m.vlanParentIdx--
+				return m, nil
+			}
+			m.setFocusByVisible(-1)
+			return m, nil
+		}
 		m.setFocusByVisible(-1)
 		return m, nil
 	case " ", "enter":
 		if m.formFocus == fBondSlaves {
 			m.toggleBondSlaveAt(m.bondSlaveIdx)
+			return m, nil
+		}
+		if m.formFocus == fVLANParent {
+			m.selectVLANParentAt(m.vlanParentIdx)
 			return m, nil
 		}
 		if m.isToggleFocus() {
@@ -411,7 +498,7 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if idx := inputIndex(m.formFocus); idx >= 0 {
 		var cmd tea.Cmd
 		m.inputs[idx], cmd = m.inputs[idx].Update(msg)
-		if m.editType == interfaces.TypeVLAN && (idx == inVLANParent || idx == inVLANID) {
+		if m.editType == interfaces.TypeVLAN && idx == inVLANID {
 			m.maybeRefreshVLANName()
 		}
 		if m.editType == interfaces.TypeBond && idx == inName {
@@ -483,17 +570,65 @@ func (m Model) viewEditForm() string {
 		return "[ ] No"
 	}
 
-	b.WriteString(row(fName, "Device", m.inputs[inName].View()))
-	b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
-	b.WriteString(row(fHotplug, "Hotplug", boolStr(m.hotplugOn)))
-
 	switch m.editType {
 	case interfaces.TypeVLAN:
+		devName := strings.TrimSpace(m.inputs[inName].Value())
+		if devName == "" {
+			devName = "(select parent + VLAN ID)"
+		}
+		b.WriteString(subtleStyle.Render(fmt.Sprintf("  Device         %s", devName)) + "\n")
+		b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
+		b.WriteString(row(fHotplug, "Hotplug", boolStr(m.hotplugOn)))
 		b.WriteString("\n")
-		b.WriteString(subtleStyle.Render("  —— VLAN (parent may be bondX) ——") + "\n")
-		b.WriteString(row(fVLANParent, "Parent", m.inputs[inVLANParent].View()))
+		b.WriteString(subtleStyle.Render("  —— VLAN parent (UP NICs/bonds — Space/Enter to select) ——") + "\n")
+		if len(m.vlanParentCandidates) == 0 {
+			style := itemStyle
+			if m.formFocus == fVLANParent {
+				style = selectedStyle
+			}
+			b.WriteString(style.Render("  (No UP interfaces found)") + "\n")
+		} else {
+			for i, name := range m.vlanParentCandidates {
+				cursor := "  "
+				style := itemStyle
+				if m.formFocus == fVLANParent && i == m.vlanParentIdx {
+					cursor = "> "
+					style = selectedStyle
+				}
+				mark := "( )"
+				if name == m.vlanParentSelected {
+					mark = "(*)"
+				}
+				state := "?"
+				kind := ""
+				for _, d := range m.devices {
+					if d.Name == name {
+						state = strings.ToUpper(d.State)
+						if state == "" {
+							if netdev.IsUp(name) {
+								state = "UP"
+							} else {
+								state = "DOWN"
+							}
+						}
+						kind = d.Kind
+						break
+					}
+				}
+				line := fmt.Sprintf("%s%s %-12s %-6s %s", cursor, mark, name, state, kind)
+				b.WriteString(style.Render(line) + "\n")
+			}
+		}
+		sel := m.vlanParentSelected
+		if sel == "" {
+			sel = "(none)"
+		}
+		b.WriteString(subtleStyle.Render("  Selected parent: "+sel) + "\n")
 		b.WriteString(row(fVLANID, "VLAN ID", m.inputs[inVLANID].View()))
 	case interfaces.TypeBond:
+		b.WriteString(row(fName, "Device", m.inputs[inName].View()))
+		b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
+		b.WriteString(row(fHotplug, "Hotplug", boolStr(m.hotplugOn)))
 		b.WriteString("\n")
 		b.WriteString(subtleStyle.Render("  —— Bond slaves (UP NICs — Space/Enter to toggle) ——") + "\n")
 		if len(m.bondCandidates) == 0 {
@@ -539,6 +674,10 @@ func (m Model) viewEditForm() string {
 		b.WriteString(row(fBondMode, "Mode", "< "+bondModes[m.bondModeIdx]+" >"))
 		b.WriteString(row(fBondMiimon, "Miimon", m.inputs[inBondMiimon].View()))
 		b.WriteString(row(fBondLacp, "LACP rate", m.inputs[inBondLacp].View()))
+	default:
+		b.WriteString(row(fName, "Device", m.inputs[inName].View()))
+		b.WriteString(row(fAuto, "Auto start", boolStr(m.autoOn)))
+		b.WriteString(row(fHotplug, "Hotplug", boolStr(m.hotplugOn)))
 	}
 
 	b.WriteString("\n")
@@ -611,26 +750,26 @@ func (m *Model) buildConnFromForm() (*interfaces.Connection, error) {
 
 	switch m.editType {
 	case interfaces.TypeVLAN:
-		parent := strings.TrimSpace(m.inputs[inVLANParent].Value())
+		parent := strings.TrimSpace(m.vlanParentSelected)
 		id := strings.TrimSpace(m.inputs[inVLANID].Value())
-		if parent == "" || id == "" {
-			return nil, fmt.Errorf("VLAN parent and ID are required")
+		if parent == "" {
+			return nil, fmt.Errorf("select a VLAN parent interface")
+		}
+		if id == "" {
+			return nil, fmt.Errorf("VLAN ID is required")
 		}
 		if _, err := strconv.Atoi(id); err != nil {
 			return nil, fmt.Errorf("VLAN ID must be a number")
 		}
-		if !strings.Contains(name, ".") {
-			name = parent + "." + id
-			c.Name = name
-			if c.IPv4 != nil {
-				c.IPv4.Name = name
-			}
-			if c.IPv6 != nil {
-				c.IPv6.Name = name
-			}
+		name = parent + "." + id
+		c.Name = name
+		if c.IPv4 != nil {
+			c.IPv4.Name = name
+		}
+		if c.IPv6 != nil {
+			c.IPv6.Name = name
 		}
 		primary.SetOption("vlan-raw-device", parent)
-		// vlan_id helps ifupdown-vlan; dotted names usually work without it
 		primary.SetOption("vlan_id", id)
 	case interfaces.TypeBond:
 		slaves := m.selectedBondSlaves()
