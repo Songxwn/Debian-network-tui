@@ -9,7 +9,7 @@ import (
 )
 
 // Default idle timeout before automatic exit.
-const defaultIdleTimeout = 30 * time.Second
+const defaultIdleTimeout = 65 * time.Second
 
 type idleTickMsg time.Time
 

@@ -68,7 +68,7 @@ Override config path (for testing):
 sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 ```
 
-Idle timeout: exits after **30 seconds** without keyboard input.
+Idle timeout: exits after **65 seconds** without keyboard input.
 Override with `IDLE_TIMEOUT_SEC` (set `0` to disable):
 
 ```bash
