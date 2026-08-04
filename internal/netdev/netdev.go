@@ -165,17 +165,43 @@ func runIfCmd(bin, name string) error {
 	return nil
 }
 
-// ReloadNetworking restarts networking via systemctl when available.
+// ReloadNetworking restarts the ifupdown networking service.
+// Tries systemctl first, then /etc/init.d/networking.
 func ReloadNetworking() error {
 	if _, err := exec.LookPath("systemctl"); err == nil {
 		cmd := exec.Command("systemctl", "restart", "networking")
 		out, err := cmd.CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("systemctl restart networking failed: %s", strings.TrimSpace(string(out)))
+		msg := strings.TrimSpace(string(out))
+		if err == nil {
+			return nil
 		}
-		return nil
+		// Fall through to SysV init script on failure.
+		if initErr := restartNetworkingInit(); initErr == nil {
+			return nil
+		}
+		if msg == "" {
+			return fmt.Errorf("systemctl restart networking failed: %w", err)
+		}
+		return fmt.Errorf("systemctl restart networking failed: %s", msg)
 	}
-	return fmt.Errorf("systemctl not found; run ifdown/ifup manually")
+	return restartNetworkingInit()
+}
+
+func restartNetworkingInit() error {
+	script := "/etc/init.d/networking"
+	if _, err := os.Stat(script); err != nil {
+		return fmt.Errorf("networking service not found (tried systemctl and %s)", script)
+	}
+	cmd := exec.Command(script, "restart")
+	out, err := cmd.CombinedOutput()
+	msg := strings.TrimSpace(string(out))
+	if err != nil {
+		if msg == "" {
+			return fmt.Errorf("%s restart failed: %w", script, err)
+		}
+		return fmt.Errorf("%s restart failed: %s", script, msg)
+	}
+	return nil
 }
 
 // ParseProcNetDev lists interface names from /proc/net/dev (fallback).

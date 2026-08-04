@@ -82,7 +82,8 @@ sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 1. **Edit a connection** — edit interfaces config
 2. **Activate a connection** — `ifup <iface>`
 3. **Deactivate a connection** — `ifdown <iface>`
-4. **Quit**
+4. **Restart networking** — `systemctl restart networking`
+5. **Quit**
 
 ## Example: bond + VLAN
 

@@ -604,6 +604,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenActivate
 		case confirmDeactivate:
 			m.screen = screenDeactivate
+		case confirmRestartNetworking:
+			m.screen = screenMenu
 		default:
 			m.screen = screenMenu
 		}
@@ -634,7 +636,7 @@ func (m *Model) backFromConfirm(yes bool) {
 			extra = "\nSlave interfaces were set to manual + bond-master."
 		}
 		m.reload()
-		m.showMsg("Saved", fmt.Sprintf("Connection %s written to %s\nOriginal file was backed up.%s\nUse \"Activate a connection\" to apply.", c.Name, m.cfgPath, extra), screenEditList)
+		m.showMsg("Saved", fmt.Sprintf("Connection %s written to %s\nOriginal file was backed up.%s\nUse \"Activate a connection\" or \"Restart networking\" to apply.", c.Name, m.cfgPath, extra), screenEditList)
 	case confirmActivate:
 		if err := netdev.IfUp(name); err != nil {
 			m.showMsg("Activate failed", err.Error(), screenActivate)
@@ -649,6 +651,13 @@ func (m *Model) backFromConfirm(yes bool) {
 		}
 		m.reload()
 		m.showMsg("Deactivated", "Ran ifdown "+name+".", screenDeactivate)
+	case confirmRestartNetworking:
+		if err := netdev.ReloadNetworking(); err != nil {
+			m.showMsg("Restart failed", err.Error(), screenMenu)
+			return
+		}
+		m.reload()
+		m.showMsg("Networking restarted", "Networking service was restarted.\nSSH sessions may drop briefly.", screenMenu)
 	}
 }
 
@@ -679,6 +688,8 @@ func (m Model) viewConfirm() string {
 		text = fmt.Sprintf("Run ifup %s?", m.confirmN)
 	case confirmDeactivate:
 		text = fmt.Sprintf("Run ifdown %s?\nThis may interrupt network connectivity.", m.confirmN)
+	case confirmRestartNetworking:
+		text = "Restart networking service?\n(systemctl restart networking)\nThis may interrupt SSH / network connectivity."
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")

@@ -33,6 +33,7 @@ const (
 	confirmSave
 	confirmActivate
 	confirmDeactivate
+	confirmRestartNetworking
 )
 
 // Model is the root Bubble Tea model.
@@ -77,6 +78,7 @@ var menuItems = []string{
 	"Edit a connection",
 	"Activate a connection",
 	"Deactivate a connection",
+	"Restart networking",
 	"Quit",
 }
 
@@ -255,6 +257,9 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.actIdx = 0
 			m.screen = screenDeactivate
 		case 3:
+			m.confirm = confirmRestartNetworking
+			m.screen = screenConfirm
+		case 4:
 			return m, tea.Quit
 		}
 	}
