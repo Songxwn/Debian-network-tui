@@ -132,3 +132,49 @@ iface lo inet loopback
 		}
 	}
 }
+
+func TestClearAllConnections(t *testing.T) {
+	dir := t.TempDir()
+	drop := filepath.Join(dir, "interfaces.d")
+	if err := os.MkdirAll(drop, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "interfaces")
+	content := `source-directory interfaces.d
+auto lo
+iface lo inet loopback
+auto eth0
+iface eth0 inet dhcp
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	dropFile := filepath.Join(drop, "eth1")
+	if err := os.WriteFile(dropFile, []byte("auto eth1\niface eth1 inet dhcp\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := interfaces.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.ClearAllConnections(); err != nil {
+		t.Fatal(err)
+	}
+
+	f2, err := interfaces.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f2.FindConnection("eth0") != nil {
+		t.Fatal("eth0 should be cleared")
+	}
+	lo := f2.FindConnection("lo")
+	if lo == nil || lo.IPv4 == nil || lo.IPv4.Method != interfaces.MethodLoopback {
+		t.Fatalf("lo missing: %+v", lo)
+	}
+	raw, _ := os.ReadFile(dropFile)
+	if strings.Contains(string(raw), "iface eth1") {
+		t.Fatalf("drop-in not cleared: %s", raw)
+	}
+}

@@ -83,7 +83,8 @@ sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 2. **Activate a connection** — `ifup <iface>`
 3. **Deactivate a connection** — `ifdown <iface>`
 4. **Restart networking** — `systemctl restart networking`
-5. **Quit**
+5. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
+6. **Quit**
 
 ## Example: bond + VLAN
 

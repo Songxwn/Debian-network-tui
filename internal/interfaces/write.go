@@ -37,6 +37,106 @@ func (f *File) SaveConnection(conn *Connection) error {
 	return f.writeAtomic(f.Path)
 }
 
+// ClearAllConnections removes all interface stanzas except loopback,
+// keeps source / source-directory lines, and clears sourced drop-in files.
+// A backup of each rewritten file is created first.
+func (f *File) ClearAllConnections() error {
+	if f == nil || f.Path == "" {
+		return fmt.Errorf("invalid interfaces file")
+	}
+
+	var sources []Stanza
+	for _, s := range f.Stanzas {
+		if s.Kind == KindSource || s.Kind == KindSourceDirectory {
+			sources = append(sources, s)
+		}
+	}
+
+	// Clear drop-in files referenced via source / source-directory.
+	cleared := map[string]bool{}
+	for _, src := range f.Sources {
+		if src == nil || src.Path == "" || cleared[src.Path] {
+			continue
+		}
+		cleared[src.Path] = true
+		empty := &File{
+			Path: src.Path,
+			Stanzas: []Stanza{
+				{Kind: KindComment, Raw: "# Cleared by debian-network-tui"},
+				{Kind: KindBlank, Raw: ""},
+			},
+		}
+		if err := empty.writeAtomic(src.Path); err != nil {
+			return fmt.Errorf("clear %s: %w", src.Path, err)
+		}
+	}
+
+	// Also wipe non-hidden files under source-directory paths even if empty before.
+	for _, s := range sources {
+		if s.Kind != KindSourceDirectory {
+			continue
+		}
+		dir := s.Path
+		if !filepath.IsAbs(dir) {
+			dir = filepath.Join(filepath.Dir(f.Path), dir)
+		}
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() || strings.HasPrefix(e.Name(), ".") {
+				continue
+			}
+			p := filepath.Join(dir, e.Name())
+			if cleared[p] {
+				continue
+			}
+			cleared[p] = true
+			empty := &File{
+				Path: p,
+				Stanzas: []Stanza{
+					{Kind: KindComment, Raw: "# Cleared by debian-network-tui"},
+					{Kind: KindBlank, Raw: ""},
+				},
+			}
+			if err := empty.writeAtomic(p); err != nil {
+				return fmt.Errorf("clear %s: %w", p, err)
+			}
+		}
+	}
+
+	stanzas := []Stanza{
+		{Kind: KindComment, Raw: "# This file describes the network interfaces available on your system"},
+		{Kind: KindComment, Raw: "# and how to activate them. For more information, see interfaces(5)."},
+		{Kind: KindComment, Raw: "# Cleared by debian-network-tui — only loopback remains."},
+		{Kind: KindBlank, Raw: ""},
+	}
+	if len(sources) == 0 {
+		stanzas = append(stanzas, Stanza{
+			Kind: KindSource,
+			Path: "/etc/network/interfaces.d/*",
+			Raw:  "source /etc/network/interfaces.d/*",
+		})
+	} else {
+		stanzas = append(stanzas, sources...)
+	}
+	stanzas = append(stanzas,
+		Stanza{Kind: KindBlank, Raw: ""},
+		Stanza{Kind: KindComment, Raw: "# The loopback network interface"},
+		Stanza{Kind: KindAuto, Names: []string{"lo"}, Raw: "auto lo"},
+		Stanza{Kind: KindIface, Iface: &Iface{
+			Name:   "lo",
+			Family: FamilyInet,
+			Method: MethodLoopback,
+		}, Raw: "iface lo inet loopback"},
+	)
+
+	f.Stanzas = stanzas
+	f.Sources = nil
+	return f.writeAtomic(f.Path)
+}
+
 // DeleteConnection removes auto/allow-hotplug/iface stanzas for name.
 func (f *File) DeleteConnection(name string) error {
 	if name == "" || name == "lo" {

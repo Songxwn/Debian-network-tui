@@ -777,6 +777,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenDeactivate
 		case confirmRestartNetworking:
 			m.screen = screenMenu
+		case confirmClearAll:
+			m.screen = screenMenu
 		default:
 			m.screen = screenMenu
 		}
@@ -829,6 +831,13 @@ func (m *Model) backFromConfirm(yes bool) {
 		}
 		m.reload()
 		m.showMsg("Networking restarted", "Networking service was restarted.\nSSH sessions may drop briefly.", screenMenu)
+	case confirmClearAll:
+		if err := m.file.ClearAllConnections(); err != nil {
+			m.showMsg("Clear failed", err.Error(), screenMenu)
+			return
+		}
+		m.reload()
+		m.showMsg("Cleared", fmt.Sprintf("All connections removed from %s\n(and interfaces.d drop-ins).\nOnly loopback (lo) remains.\nBackups were created.\nUse \"Restart networking\" to apply.", m.cfgPath), screenMenu)
 	}
 }
 
@@ -861,6 +870,8 @@ func (m Model) viewConfirm() string {
 		text = fmt.Sprintf("Run ifdown %s?\nThis may interrupt network connectivity.", m.confirmN)
 	case confirmRestartNetworking:
 		text = "Restart networking service?\n(systemctl restart networking)\nThis may interrupt SSH / network connectivity."
+	case confirmClearAll:
+		text = fmt.Sprintf("Clear ALL network connections in %s?\nAlso clears interfaces.d drop-ins.\nOnly loopback (lo) will remain.\nBackups will be created.\nTHIS CAN CUT REMOTE ACCESS.", m.cfgPath)
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")
