@@ -22,6 +22,7 @@ const (
 	screenEditList
 	screenAddType
 	screenEditForm
+	screenDNS
 	screenActivate
 	screenDeactivate
 	screenConfirm
@@ -41,6 +42,7 @@ const (
 	confirmInstallDebs
 	confirmClearAptSources
 	confirmApplyAptSources
+	confirmSaveDNS
 )
 
 // Model is the root Bubble Tea model.
@@ -86,6 +88,12 @@ type Model struct {
 	pendingAptCfgs []aptsources.LocalConfig
 	pendingAptDir  string
 
+	dnsInputs   []textinput.Model
+	dnsFocus    int
+	dnsPath     string
+	dnsSymlink  string
+	dnsWarn     string
+
 	status   string
 	errMsg   string
 	confirm  confirmAction
@@ -103,6 +111,7 @@ type Model struct {
 
 var menuItems = []string{
 	"Edit a connection",
+	"Edit DNS (/etc/resolv.conf)",
 	"Activate a connection",
 	"Deactivate a connection",
 	"Restart networking",
@@ -200,6 +209,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateAddType(msg)
 		case screenEditForm:
 			return m.updateEditForm(msg)
+		case screenDNS:
+			return m.updateDNSForm(msg)
 		case screenActivate:
 			return m.updateActList(msg, true)
 		case screenDeactivate:
@@ -224,6 +235,8 @@ func (m Model) View() string {
 		body = m.viewAddType()
 	case screenEditForm:
 		body = m.viewEditForm()
+	case screenDNS:
+		body = m.viewDNSForm()
 	case screenActivate:
 		body = m.viewActList(true)
 	case screenDeactivate:
@@ -263,6 +276,7 @@ func (m Model) viewFooter() string {
 		screenEditList:   "Up/Down select  Enter edit  a add  d delete  Esc back",
 		screenAddType:    "Up/Down select  Enter confirm  Esc back",
 		screenEditForm:   "Tab next field  Space toggle  Left/Right change  Ctrl+S save  Esc cancel",
+		screenDNS:        "Tab next field  Ctrl+S save  Esc cancel",
 		screenActivate:   "Up/Down select  Enter activate  Esc back",
 		screenDeactivate: "Up/Down select  Enter deactivate  Esc back",
 		screenConfirm:    "y confirm  n/Esc cancel",
@@ -305,20 +319,22 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.listIdx = 0
 			m.screen = screenEditList
 		case 1:
-			m.reload()
-			m.actIdx = 0
-			m.screen = screenActivate
+			m.startDNSForm()
 		case 2:
 			m.reload()
 			m.actIdx = 0
-			m.screen = screenDeactivate
+			m.screen = screenActivate
 		case 3:
+			m.reload()
+			m.actIdx = 0
+			m.screen = screenDeactivate
+		case 4:
 			m.confirm = confirmRestartNetworking
 			m.screen = screenConfirm
-		case 4:
+		case 5:
 			m.confirm = confirmClearAll
 			m.screen = screenConfirm
-		case 5:
+		case 6:
 			dir, err := packages.SelfDir()
 			if err != nil {
 				m.showMsg("Install failed", err.Error(), screenMenu)
@@ -349,10 +365,10 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pendingDebs = found.Found()
 			m.confirm = confirmInstallDebs
 			m.screen = screenConfirm
-		case 6:
+		case 7:
 			m.confirm = confirmClearAptSources
 			m.screen = screenConfirm
-		case 7:
+		case 8:
 			dir, err := packages.SelfDir()
 			if err != nil {
 				m.showMsg("Apply failed", err.Error(), screenMenu)
@@ -373,7 +389,7 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pendingAptCfgs = cfgs
 			m.confirm = confirmApplyAptSources
 			m.screen = screenConfirm
-		case 8:
+		case 9:
 			return m, tea.Quit
 		}
 	}

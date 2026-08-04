@@ -31,7 +31,6 @@ const (
 	fAddress
 	fNetmask
 	fGateway
-	fDNS
 	fIPv6Method
 	fV6Address
 	fV6Gateway
@@ -40,7 +39,7 @@ const (
 
 // Text input slots (VLAN parent / bond slaves use pickers, not text fields):
 // 0 name, 1 unused, 2 vlan id, 3 unused, 4 bond miimon, 5 bond lacp,
-// 6 v4 addr, 7 netmask, 8 gateway, 9 dns, 10 v6 addr, 11 v6 gateway
+// 6 v4 addr, 7 netmask, 8 gateway, 9 unused, 10 v6 addr, 11 v6 gateway
 const (
 	inName = iota
 	inUnusedParent
@@ -51,7 +50,7 @@ const (
 	inAddress
 	inNetmask
 	inGateway
-	inDNS
+	inUnusedDNS
 	inV6Address
 	inV6Gateway
 	inCount
@@ -69,7 +68,7 @@ func (m *Model) visibleFields() []int {
 		fields = append([]int{fName}, fields...)
 	}
 	fields = append(fields,
-		fIPv4Method, fAddress, fNetmask, fGateway, fDNS,
+		fIPv4Method, fAddress, fNetmask, fGateway,
 		fIPv6Method, fV6Address, fV6Gateway,
 	)
 	return fields
@@ -171,7 +170,6 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		vals[inAddress] = c.IPv4.GetOption("address")
 		vals[inNetmask] = c.IPv4.GetOption("netmask")
 		vals[inGateway] = c.IPv4.GetOption("gateway")
-		vals[inDNS] = c.IPv4.GetOption("dns-nameservers")
 	}
 	if c.IPv6 != nil {
 		vals[inV6Address] = c.IPv6.GetOption("address")
@@ -188,7 +186,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		"IPv4 address",
 		"netmask e.g. 255.255.255.0",
 		"default gateway",
-		"DNS space-separated",
+		"",
 		"IPv6 address/prefix",
 		"IPv6 gateway",
 	}
@@ -381,8 +379,6 @@ func inputIndex(focus int) int {
 		return inNetmask
 	case fGateway:
 		return inGateway
-	case fDNS:
-		return inDNS
 	case fV6Address:
 		return inV6Address
 	case fV6Gateway:
@@ -690,7 +686,6 @@ func (m Model) viewEditForm() string {
 	b.WriteString(row(fAddress, "Address", m.inputs[inAddress].View()))
 	b.WriteString(row(fNetmask, "Netmask", m.inputs[inNetmask].View()))
 	b.WriteString(row(fGateway, "Gateway", m.inputs[inGateway].View()))
-	b.WriteString(row(fDNS, "DNS", m.inputs[inDNS].View()))
 	b.WriteString("\n")
 	b.WriteString(subtleStyle.Render("  —— IPv6 ——") + "\n")
 	b.WriteString(row(fIPv6Method, "Method", "< "+ipv6Methods[m.ipv6Method]+" >"))
@@ -722,7 +717,6 @@ func (m *Model) buildConnFromForm() (*interfaces.Connection, error) {
 		c.IPv4.SetOption("address", strings.TrimSpace(m.inputs[inAddress].Value()))
 		c.IPv4.SetOption("netmask", strings.TrimSpace(m.inputs[inNetmask].Value()))
 		c.IPv4.SetOption("gateway", strings.TrimSpace(m.inputs[inGateway].Value()))
-		c.IPv4.SetOption("dns-nameservers", strings.TrimSpace(m.inputs[inDNS].Value()))
 	case 2:
 		c.EnsureIPv4(interfaces.MethodManual)
 	case 3:
@@ -933,6 +927,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenMenu
 		case confirmApplyAptSources:
 			m.screen = screenMenu
+		case confirmSaveDNS:
+			m.screen = screenDNS
 		default:
 			m.screen = screenMenu
 		}
@@ -1025,6 +1021,22 @@ func (m *Model) backFromConfirm(yes bool) {
 			return
 		}
 		m.showMsg("Apt sources applied", note+"\n\nSuggested: apt-get update", screenMenu)
+	case confirmSaveDNS:
+		cfg, err := m.buildDNSFromForm()
+		if err != nil {
+			m.status = err.Error()
+			m.screen = screenDNS
+			return
+		}
+		if err := cfg.Save(); err != nil {
+			m.showMsg("DNS save failed", err.Error(), screenDNS)
+			return
+		}
+		extra := ""
+		if m.dnsSymlink != "" {
+			extra = "\nReplaced symlink with a regular file."
+		}
+		m.showMsg("DNS saved", fmt.Sprintf("Wrote %s\nBackup created.%s", cfg.Path, extra), screenMenu)
 	}
 }
 
@@ -1079,6 +1091,11 @@ func (m Model) viewConfirm() string {
 		}
 		text = fmt.Sprintf("Apply apt sources from:\n%s\n\n%s\n\nExisting targets are backed up first.",
 			m.pendingAptDir, strings.Join(lines, "\n"))
+	case confirmSaveDNS:
+		text = fmt.Sprintf("Save DNS settings to %s?\nA backup will be created first.", m.dnsPath)
+		if m.dnsSymlink != "" {
+			text += "\nSymlink will be replaced with a regular file."
+		}
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")

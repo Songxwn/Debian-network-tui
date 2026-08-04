@@ -24,6 +24,7 @@ All UI text is English so it works on minimal installs without CJK fonts.
 - Bond: slaves, mode (802.3ad / active-backup / …), miimon, LACP rate; slaves auto-written as `manual` + `bond-master`
 - IPv4: `dhcp` / `static` / `manual` / disabled
 - IPv6: `disabled` / `dhcp` / `static` / `auto` (`manual` + `accept_ra 1`)
+- DNS via dedicated editor for `/etc/resolv.conf` (nameservers + search)
 - `auto` and `allow-hotplug` toggles
 - Activate / deactivate via `ifup` / `ifdown`
 - Automatic backup before save
@@ -97,18 +98,19 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 ### Main menu (nmtui-like)
 
 1. **Edit a connection** — edit interfaces config
-2. **Activate a connection** — `ifup <iface>`
-3. **Deactivate a connection** — `ifdown <iface>`
-4. **Restart networking** — `systemctl restart networking`
-5. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
-6. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
-7. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
-8. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
-9. **Quit**
+2. **Edit DNS (/etc/resolv.conf)** — nameservers and search domains
+3. **Activate a connection** — `ifup <iface>`
+4. **Deactivate a connection** — `ifdown <iface>`
+5. **Restart networking** — `systemctl restart networking`
+6. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
+7. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
+8. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
+9. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
+10. **Quit**
 
-Place matching `.deb` files in the same directory as `debian-network-tui` before using option 6.
+Place matching `.deb` files in the same directory as `debian-network-tui` before using option 7.
 
-For options 7–8, place an apt sources file next to the binary (see `examples/sources.list`):
+For options 8–9, place an apt sources file next to the binary (see `examples/sources.list`):
 
 - `sources.list` or `apt-sources.list` → `/etc/apt/sources.list`
 - `*.list` / `*.sources` → `/etc/apt/sources.list.d/`
@@ -158,9 +160,9 @@ iface eth0 inet static
     address 192.168.1.10
     netmask 255.255.255.0
     gateway 192.168.1.1
-    dns-nameservers 8.8.8.8 1.1.1.1
 ```
 
+DNS is configured separately in `/etc/resolv.conf` via **Edit DNS**.
 ## Notes
 
 - After editing, use **Activate a connection**, or run `ifup <iface>` / `systemctl restart networking`
