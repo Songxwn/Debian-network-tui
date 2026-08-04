@@ -17,6 +17,7 @@ type screen int
 const (
 	screenMenu screen = iota
 	screenEditList
+	screenAddType
 	screenEditForm
 	screenActivate
 	screenDeactivate
@@ -44,6 +45,7 @@ type Model struct {
 
 	menuIdx   int
 	listIdx   int
+	addTypeIdx int
 	formFocus int
 	actIdx    int
 
@@ -51,18 +53,19 @@ type Model struct {
 	devices  []netdev.Device
 	editConn *interfaces.Connection
 	editNew  bool
+	editType interfaces.ConnType
 	inputs   []textinput.Model
 
-	// Form toggles (not free-text)
 	autoOn     bool
 	hotplugOn  bool
-	ipv4Method int // 0=dhcp 1=static 2=disabled
-	ipv6Method int // 0=disabled 1=dhcp 2=static 3=auto(manual accept_ra style -> dhcp for simplicity) 
+	ipv4Method int
+	ipv6Method int
+	bondModeIdx int
 
 	status   string
 	errMsg   string
 	confirm  confirmAction
-	confirmN string // target name
+	confirmN string
 	msgTitle string
 	msgBody  string
 	msgBack  screen
@@ -75,6 +78,24 @@ var menuItems = []string{
 	"Activate a connection",
 	"Deactivate a connection",
 	"Quit",
+}
+
+var addTypeItems = []string{
+	"Ethernet",
+	"VLAN (on ethernet or bond)",
+	"Bond (bonding)",
+}
+
+var ipv4Methods = []string{"dhcp", "static", "manual", "disabled"}
+var ipv6Methods = []string{"disabled", "dhcp", "static", "auto"}
+var bondModes = []string{
+	"802.3ad",
+	"active-backup",
+	"balance-rr",
+	"balance-xor",
+	"broadcast",
+	"balance-tlb",
+	"balance-alb",
 }
 
 func New(cfgPath string) Model {
@@ -103,6 +124,11 @@ func (m *Model) reload() {
 	} else {
 		m.devices = devs
 	}
+	names := make([]string, 0, len(m.devices))
+	for _, d := range m.devices {
+		names = append(names, d.Name)
+	}
+	m.conns = interfaces.MergeWithDevices(m.conns, names)
 }
 
 func (m Model) Init() tea.Cmd {
@@ -124,6 +150,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMenu(msg)
 		case screenEditList:
 			return m.updateEditList(msg)
+		case screenAddType:
+			return m.updateAddType(msg)
 		case screenEditForm:
 			return m.updateEditForm(msg)
 		case screenActivate:
@@ -146,6 +174,8 @@ func (m Model) View() string {
 		body = m.viewMenu()
 	case screenEditList:
 		body = m.viewEditList()
+	case screenAddType:
+		body = m.viewAddType()
 	case screenEditForm:
 		body = m.viewEditForm()
 	case screenActivate:
@@ -185,6 +215,7 @@ func (m Model) viewFooter() string {
 	hints := map[screen]string{
 		screenMenu:       "Up/Down select  Enter confirm  q quit",
 		screenEditList:   "Up/Down select  Enter edit  a add  d delete  Esc back",
+		screenAddType:    "Up/Down select  Enter confirm  Esc back",
 		screenEditForm:   "Tab next field  Left/Right toggle  Ctrl+S save  Esc cancel",
 		screenActivate:   "Up/Down select  Enter activate  Esc back",
 		screenDeactivate: "Up/Down select  Enter deactivate  Esc back",
@@ -193,10 +224,9 @@ func (m Model) viewFooter() string {
 	}
 	h := hints[m.screen]
 	path := subtleStyle.Render(m.cfgPath)
-	return footerStyle.Render(h) + "\n" + path
+	devHint := subtleStyle.Render(fmt.Sprintf("%d system interfaces", len(m.devices)))
+	return footerStyle.Render(h) + "\n" + path + "  " + devHint
 }
-
-// ---------- Menu ----------
 
 func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -246,8 +276,6 @@ func (m Model) viewMenu() string {
 	return b.String()
 }
 
-// ---------- Edit list ----------
-
 func (m Model) updateEditList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
@@ -262,25 +290,39 @@ func (m Model) updateEditList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.listIdx++
 		}
 	case "a":
-		m.startNewForm()
+		m.addTypeIdx = 0
+		m.screen = screenAddType
 	case "d":
 		if len(m.conns) == 0 {
 			return m, nil
 		}
-		name := m.conns[m.listIdx].Name
-		if name == "lo" {
+		c := m.conns[m.listIdx]
+		if c.Name == "lo" {
 			m.status = "Cannot delete lo interface"
 			return m, nil
 		}
+		if !c.Configured() {
+			m.status = "Interface is not configured yet"
+			return m, nil
+		}
 		m.confirm = confirmDelete
-		m.confirmN = name
+		m.confirmN = c.Name
 		m.screen = screenConfirm
 	case "enter", " ":
 		if len(m.conns) == 0 {
-			m.startNewForm()
+			m.addTypeIdx = 0
+			m.screen = screenAddType
 			return m, nil
 		}
-		m.startEditForm(cloneConn(m.conns[m.listIdx]), false)
+		c := m.conns[m.listIdx]
+		if !c.Configured() {
+			// Start ethernet form prefilled with device name
+			nc := interfaces.NewConnection(c.Name)
+			nc.AllowHotplug = true
+			m.startEditForm(nc, true, interfaces.TypeEthernet)
+			return m, nil
+		}
+		m.startEditForm(cloneConn(c), false, c.Type())
 	}
 	return m, nil
 }
@@ -289,7 +331,7 @@ func (m Model) viewEditList() string {
 	var b strings.Builder
 	b.WriteString(sectionStyle.Render("Edit a connection") + "\n\n")
 	if len(m.conns) == 0 {
-		b.WriteString(subtleStyle.Render("  (No connections — press a to add)") + "\n")
+		b.WriteString(subtleStyle.Render("  (No interfaces — press a to add)") + "\n")
 		return b.String()
 	}
 	for i, c := range m.conns {
@@ -299,25 +341,98 @@ func (m Model) viewEditList() string {
 			cursor = "> "
 			style = selectedStyle
 		}
-		flags := []string{}
-		if c.Auto {
-			flags = append(flags, "auto")
+		ctype := string(c.Type())
+		if !c.Configured() {
+			ctype = "unconfigured"
 		}
-		if c.AllowHotplug {
-			flags = append(flags, "hotplug")
+		state := "-"
+		addrs := ""
+		for _, d := range m.devices {
+			if d.Name == c.Name {
+				state = strings.ToUpper(d.State)
+				if state == "" {
+					state = "?"
+				}
+				addrs = strings.Join(d.Addrs, " ")
+				if d.Kind != "" && !c.Configured() {
+					ctype = d.Kind
+				}
+				break
+			}
 		}
 		v4 := string(c.IPv4Method())
 		if v4 == "" {
 			v4 = "-"
 		}
-		v6 := string(c.IPv6Method())
-		if v6 == "" {
-			v6 = "-"
-		}
-		line := fmt.Sprintf("%s%-12s  inet:%-8s inet6:%-8s  %s",
-			cursor, c.Name, v4, v6, strings.Join(flags, ","))
+		line := fmt.Sprintf("%s%-14s %-12s %-6s inet:%-7s %s",
+			cursor, c.Name, ctype, state, v4, addrs)
 		b.WriteString(style.Render(line) + "\n")
 	}
+	return b.String()
+}
+
+func (m Model) updateAddType(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "q":
+		m.screen = screenEditList
+	case "up", "k":
+		if m.addTypeIdx > 0 {
+			m.addTypeIdx--
+		}
+	case "down", "j":
+		if m.addTypeIdx < len(addTypeItems)-1 {
+			m.addTypeIdx++
+		}
+	case "enter", " ":
+		switch m.addTypeIdx {
+		case 0:
+			m.startEditForm(interfaces.NewConnection(""), true, interfaces.TypeEthernet)
+		case 1:
+			c := &interfaces.Connection{
+				Name:         "",
+				AllowHotplug: true,
+				IPv4: &interfaces.Iface{
+					Name:   "",
+					Family: interfaces.FamilyInet,
+					Method: interfaces.MethodStatic,
+				},
+			}
+			m.startEditForm(c, true, interfaces.TypeVLAN)
+		case 2:
+			c := &interfaces.Connection{
+				Name: "bond0",
+				Auto: true,
+				IPv4: &interfaces.Iface{
+					Name:   "bond0",
+					Family: interfaces.FamilyInet,
+					Method: interfaces.MethodManual,
+					Options: []interfaces.Option{
+						{Key: "bond-mode", Value: "802.3ad"},
+						{Key: "bond-miimon", Value: "100"},
+						{Key: "bond-slaves", Value: ""},
+					},
+				},
+			}
+			m.startEditForm(c, true, interfaces.TypeBond)
+		}
+	}
+	return m, nil
+}
+
+func (m Model) viewAddType() string {
+	var b strings.Builder
+	b.WriteString(sectionStyle.Render("Add connection — choose type") + "\n\n")
+	for i, item := range addTypeItems {
+		cursor := "  "
+		style := itemStyle
+		if i == m.addTypeIdx {
+			cursor = "> "
+			style = selectedStyle
+		}
+		b.WriteString(style.Render(cursor+item) + "\n")
+	}
+	b.WriteString("\n")
+	b.WriteString(subtleStyle.Render("  VLAN parent can be ethX or bondX (VLAN on bond).") + "\n")
 	return b.String()
 }
 
@@ -337,4 +452,21 @@ func cloneConn(c *interfaces.Connection) *interfaces.Connection {
 		cp.IPv6 = &v
 	}
 	return &cp
+}
+
+func (m Model) deviceNamesHint() string {
+	var names []string
+	for _, d := range m.devices {
+		if d.IsLoop {
+			continue
+		}
+		names = append(names, d.Name)
+	}
+	if len(names) == 0 {
+		return "(no system interfaces detected)"
+	}
+	if len(names) > 8 {
+		return strings.Join(names[:8], " ") + " ..."
+	}
+	return strings.Join(names, " ")
 }

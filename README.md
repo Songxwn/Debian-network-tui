@@ -7,13 +7,16 @@ All UI text is English so it works on minimal installs without CJK fonts.
 
 ## Features
 
+- Lists **all system interfaces** (not only ones already in the config file)
 - Edit connections: add / modify / delete iface stanzas
-- IPv4: `dhcp` / `static` / disabled
+- Connection types: **Ethernet**, **VLAN**, **Bond**
+- VLAN on ethernet **or on bond** (`bond0.100` with `vlan-raw-device bond0`)
+- Bond: slaves, mode (802.3ad / active-backup / …), miimon, LACP rate; slaves auto-written as `manual` + `bond-master`
+- IPv4: `dhcp` / `static` / `manual` / disabled
 - IPv6: `disabled` / `dhcp` / `static` / `auto` (`manual` + `accept_ra 1`)
 - `auto` and `allow-hotplug` toggles
-- Static address, netmask, gateway, `dns-nameservers`
 - Activate / deactivate via `ifup` / `ifdown`
-- Automatic backup to `/etc/network/interfaces.bak.<timestamp>` before save
+- Automatic backup before save
 
 No NetworkManager dependency — suitable for servers and minimal installs.
 
@@ -29,8 +32,8 @@ Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tu
 
 ```bash
 # amd64 example
-tar -xzf debian-network-tui-v0.1.1-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.1.1-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.2.0-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.2.0-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
@@ -81,7 +84,40 @@ sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 3. **Deactivate a connection** — `ifdown <iface>`
 4. **Quit**
 
-## Example config
+## Example: bond + VLAN
+
+```
+auto bond0
+iface bond0 inet manual
+    bond-slaves eth0 eth1
+    bond-mode 802.3ad
+    bond-miimon 100
+    bond-lacp-rate fast
+
+auto eth0
+iface eth0 inet manual
+    bond-master bond0
+
+auto eth1
+iface eth1 inet manual
+    bond-master bond0
+
+allow-hotplug bond0.100
+iface bond0.100 inet static
+    vlan-raw-device bond0
+    vlan_id 100
+    address 10.10.10.2
+    netmask 255.255.255.0
+    gateway 10.10.10.1
+```
+
+Requires `ifenslave` (bonding) and `vlan` packages on Debian:
+
+```bash
+sudo apt-get install -y ifenslave vlan
+```
+
+## Example config (ethernet)
 
 After saving a static IPv4 connection:
 

@@ -11,11 +11,29 @@ import (
 // SaveConnection writes/updates a connection into the primary interfaces file.
 // It rebuilds auto/allow-hotplug/iface stanzas for that name while preserving
 // unrelated content. Creates a timestamped backup before writing.
+// For bond interfaces, slave stanzas (inet manual + bond-master) are also written.
 func (f *File) SaveConnection(conn *Connection) error {
 	if conn == nil || conn.Name == "" {
 		return fmt.Errorf("invalid connection")
 	}
 	f.applyConnection(conn)
+	if conn.Type() == TypeBond {
+		for _, slave := range conn.BondSlaves() {
+			slaveConn := &Connection{
+				Name: slave,
+				Auto: true,
+				IPv4: &Iface{
+					Name:   slave,
+					Family: FamilyInet,
+					Method: MethodManual,
+					Options: []Option{
+						{Key: "bond-master", Value: conn.Name},
+					},
+				},
+			}
+			f.applyConnection(slaveConn)
+		}
+	}
 	return f.writeAtomic(f.Path)
 }
 

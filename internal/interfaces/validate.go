@@ -25,6 +25,36 @@ func ValidateConnection(c *Connection) error {
 	if c.IPv4 == nil && c.IPv6 == nil {
 		return fmt.Errorf("configure at least IPv4 or IPv6")
 	}
+
+	switch c.Type() {
+	case TypeVLAN:
+		parent := c.VLANParent()
+		if parent == "" {
+			return fmt.Errorf("VLAN requires parent device (vlan-raw-device)")
+		}
+		id := c.VLANID()
+		if id == "" {
+			return fmt.Errorf("VLAN requires a VLAN ID")
+		}
+		n, err := strconv.Atoi(id)
+		if err != nil || n < 1 || n > 4094 {
+			return fmt.Errorf("VLAN ID must be 1-4094")
+		}
+	case TypeBond:
+		slaves := c.BondSlaves()
+		if len(slaves) == 0 {
+			return fmt.Errorf("bond requires at least one slave (bond-slaves)")
+		}
+		for _, s := range slaves {
+			if s == name {
+				return fmt.Errorf("bond cannot enslave itself")
+			}
+		}
+		if c.BondMode() == "" {
+			return fmt.Errorf("bond requires bond-mode")
+		}
+	}
+
 	if c.IPv4 != nil {
 		if err := validateIface(c.IPv4, false); err != nil {
 			return err

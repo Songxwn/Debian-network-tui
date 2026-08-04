@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -16,27 +17,90 @@ type Device struct {
 	MAC    string
 	Addrs  []string
 	IsLoop bool
+	Kind   string // ethernet, vlan, bond, bridge, other
 }
 
-// ListDevices returns non-virtual-ish NICs from /sys/class/net.
+// ListDevices returns NICs from /sys/class/net (all except empty names).
 func ListDevices() ([]Device, error) {
 	entries, err := os.ReadDir("/sys/class/net")
 	if err != nil {
-		return nil, fmt.Errorf("list network devices: %w", err)
+		// Fallback for non-Linux build/test hosts.
+		names, perr := ParseProcNetDev()
+		if perr != nil {
+			return nil, fmt.Errorf("list network devices: %w", err)
+		}
+		out := make([]Device, 0, len(names))
+		for _, name := range names {
+			out = append(out, Device{Name: name, IsLoop: name == "lo", Kind: "ethernet"})
+		}
+		return out, nil
 	}
 	var out []Device
 	for _, e := range entries {
 		name := e.Name()
+		if name == "" {
+			continue
+		}
 		d := Device{
 			Name:   name,
 			IsLoop: name == "lo",
 			State:  readFile(filepath.Join("/sys/class/net", name, "operstate")),
 			MAC:    readFile(filepath.Join("/sys/class/net", name, "address")),
+			Kind:   detectKind(name),
 		}
 		d.Addrs = readAddresses(name)
 		out = append(out, d)
 	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
 	return out, nil
+}
+
+// ListPhysicalCandidates returns non-loop devices usable as ethernet slaves / VLAN parents.
+func ListPhysicalCandidates() ([]Device, error) {
+	all, err := ListDevices()
+	if err != nil {
+		return nil, err
+	}
+	var out []Device
+	for _, d := range all {
+		if d.IsLoop {
+			continue
+		}
+		out = append(out, d)
+	}
+	return out, nil
+}
+
+func detectKind(name string) string {
+	base := filepath.Join("/sys/class/net", name)
+	if _, err := os.Stat(filepath.Join(base, "bonding")); err == nil {
+		return "bond"
+	}
+	if _, err := os.Stat(filepath.Join(base, "bridge")); err == nil {
+		return "bridge"
+	}
+	uevent := readFile(filepath.Join(base, "uevent"))
+	for _, line := range strings.Split(uevent, "\n") {
+		if strings.HasPrefix(line, "DEVTYPE=") {
+			t := strings.TrimPrefix(line, "DEVTYPE=")
+			switch t {
+			case "vlan", "bond", "bridge", "wlan":
+				return t
+			}
+		}
+	}
+	if strings.Contains(name, ".") {
+		return "vlan"
+	}
+	if strings.HasPrefix(name, "bond") {
+		return "bond"
+	}
+	if strings.HasPrefix(name, "br") {
+		return "bridge"
+	}
+	return "ethernet"
 }
 
 func readFile(path string) string {
@@ -53,7 +117,6 @@ func readAddresses(name string) []string {
 	if err != nil {
 		return nil
 	}
-	// Format: eth0 UP 192.168.1.10/24 fe80::1/64
 	fields := strings.Fields(string(out))
 	if len(fields) <= 2 {
 		return nil
@@ -70,8 +133,13 @@ func IsUp(name string) bool {
 	case "down", "lowerlayerdown", "notpresent":
 		return false
 	}
-	// Unknown / dormant: treat as up if IPv4/IPv6 address present.
 	return len(readAddresses(name)) > 0
+}
+
+// Exists reports whether the interface exists in sysfs.
+func Exists(name string) bool {
+	_, err := os.Stat(filepath.Join("/sys/class/net", name))
+	return err == nil
 }
 
 // IfUp brings an interface up via ifup(8).
