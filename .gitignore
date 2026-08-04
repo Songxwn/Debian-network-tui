@@ -1,0 +1,16 @@
+# Binaries
+/bin/
+/debian-network-tui
+/*.exe
+
+# Go
+/vendor/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Test leftovers
+*.bak.*
