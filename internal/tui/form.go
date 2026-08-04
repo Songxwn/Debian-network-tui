@@ -14,6 +14,7 @@ import (
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
+	"github.com/debian-network-tui/debian-network-tui/internal/sshsetup"
 )
 
 // Form focus indices (shared layout; unused fields skipped in navigation via visibleFields).
@@ -929,6 +930,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenMenu
 		case confirmSaveDNS:
 			m.screen = screenDNS
+		case confirmSetupSSH:
+			m.screen = screenMenu
 		default:
 			m.screen = screenMenu
 		}
@@ -1037,6 +1040,26 @@ func (m *Model) backFromConfirm(yes bool) {
 			extra = "\nReplaced symlink with a regular file."
 		}
 		m.showMsg("DNS saved", fmt.Sprintf("Wrote %s\nBackup created.%s", cfg.Path, extra), screenMenu)
+	case confirmSetupSSH:
+		dir := m.pendingSSHDir
+		res, err := sshsetup.Run(dir, packages.InstallLocalDebs)
+		m.pendingSSHDebs = nil
+		if err != nil {
+			detail := err.Error()
+			if res != nil && res.InstallDetail != "" {
+				detail = res.InstallDetail + "\n\n" + detail
+			}
+			m.showMsg("SSH setup failed", detail, screenMenu)
+			return
+		}
+		msg := fmt.Sprintf("Install: %s\nPubkey: %s\nKeys imported: %d new / %d total\nSSHD drop-in: %s\nPermitRootLogin: prohibit-password (key only)\nSSH service restarted.",
+			res.InstallMethod, res.PubkeyFile, res.KeysAdded, res.KeysTotal, res.SSHDDropIn)
+		if len(res.InstallDetail) > 400 {
+			msg += "\n\napt output (truncated):\n..." + res.InstallDetail[len(res.InstallDetail)-400:]
+		} else if res.InstallDetail != "" {
+			msg += "\n\n" + res.InstallDetail
+		}
+		m.showMsg("SSH configured", msg, screenMenu)
 	}
 }
 
@@ -1096,6 +1119,17 @@ func (m Model) viewConfirm() string {
 		if m.dnsSymlink != "" {
 			text += "\nSymlink will be replaced with a regular file."
 		}
+	case confirmSetupSSH:
+		debLine := "none (will use apt)"
+		if len(m.pendingSSHDebs) > 0 {
+			var names []string
+			for _, p := range m.pendingSSHDebs {
+				names = append(names, filepath.Base(p))
+			}
+			debLine = strings.Join(names, ", ")
+		}
+		text = fmt.Sprintf("Configure OpenSSH for root key login?\n\nDir: %s\nInstall via: %s\nLocal debs: %s\nPubkey file: %s\n\nWill set PermitRootLogin prohibit-password,\nimport key into /root/.ssh/authorized_keys,\nand restart ssh.",
+			m.pendingSSHDir, m.pendingSSHMethod, debLine, m.pendingSSHPub)
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")

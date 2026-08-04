@@ -106,9 +106,16 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 7. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
 8. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
 9. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
-10. **Quit**
+10. **Configure SSH server (root key)** — install `openssh-server` (local `.deb` or apt), enable root key login, import pubkey
+11. **Quit**
 
 Place matching `.deb` files in the same directory as `debian-network-tui` before using option 7.
+
+For SSH setup (option 10), place beside the binary:
+
+- `openssh-server_*.deb` (optional; otherwise apt is used)
+- `ssh-root.conf` (optional) with `PubkeyFile=root.pub`
+- `root.pub` — your OpenSSH public key (see `examples/`)
 
 For options 8–9, place an apt sources file next to the binary (see `examples/sources.list`):
 

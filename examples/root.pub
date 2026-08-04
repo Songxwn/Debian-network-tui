@@ -1,0 +1,3 @@
+# Example root authorized public key (one key per line).
+# Replace with your real public key, e.g. contents of ~/.ssh/id_ed25519.pub
+# ssh-ed25519 AAAA... comment

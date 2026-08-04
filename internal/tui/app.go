@@ -13,6 +13,7 @@ import (
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
+	"github.com/debian-network-tui/debian-network-tui/internal/sshsetup"
 )
 
 type screen int
@@ -43,6 +44,7 @@ const (
 	confirmClearAptSources
 	confirmApplyAptSources
 	confirmSaveDNS
+	confirmSetupSSH
 )
 
 // Model is the root Bubble Tea model.
@@ -88,11 +90,16 @@ type Model struct {
 	pendingAptCfgs []aptsources.LocalConfig
 	pendingAptDir  string
 
-	dnsInputs   []textinput.Model
-	dnsFocus    int
-	dnsPath     string
-	dnsSymlink  string
-	dnsWarn     string
+	pendingSSHDir   string
+	pendingSSHDebs  []string
+	pendingSSHPub   string
+	pendingSSHMethod string // "local-deb" or "apt" preview
+
+	dnsInputs  []textinput.Model
+	dnsFocus   int
+	dnsPath    string
+	dnsSymlink string
+	dnsWarn    string
 
 	status   string
 	errMsg   string
@@ -119,6 +126,7 @@ var menuItems = []string{
 	"Install ifenslave/vlan (.deb)",
 	"Clear apt sources",
 	"Apply apt sources from file",
+	"Configure SSH server (root key)",
 	"Quit",
 }
 
@@ -390,6 +398,28 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirm = confirmApplyAptSources
 			m.screen = screenConfirm
 		case 9:
+			dir, err := packages.SelfDir()
+			if err != nil {
+				m.showMsg("SSH setup failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			rc, err := sshsetup.LoadRootConf(dir)
+			if err != nil {
+				m.showMsg("SSH setup failed", err.Error()+"\n\nSee examples/ssh-root.conf and examples/root.pub", screenMenu)
+				return m, nil
+			}
+			debs, _ := sshsetup.FindSSHDebs(dir)
+			m.pendingSSHDir = dir
+			m.pendingSSHDebs = debs
+			m.pendingSSHPub = rc.PubkeyFile
+			if len(debs) > 0 {
+				m.pendingSSHMethod = "local .deb"
+			} else {
+				m.pendingSSHMethod = "apt-get install openssh-server"
+			}
+			m.confirm = confirmSetupSSH
+			m.screen = screenConfirm
+		case 10:
 			return m, tea.Quit
 		}
 	}
