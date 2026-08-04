@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -34,14 +35,14 @@ const (
 	fCount
 )
 
-// Text input slots:
-// 0 name, 1 vlan parent, 2 vlan id, 3 bond slaves, 4 bond miimon, 5 bond lacp,
+// Text input slots (bond slaves use a checklist, not a text field):
+// 0 name, 1 vlan parent, 2 vlan id, 3 unused, 4 bond miimon, 5 bond lacp,
 // 6 v4 addr, 7 netmask, 8 gateway, 9 dns, 10 v6 addr, 11 v6 gateway
 const (
 	inName = iota
 	inVLANParent
 	inVLANID
-	inBondSlaves
+	inUnusedSlaves
 	inBondMiimon
 	inBondLacp
 	inAddress
@@ -86,6 +87,12 @@ func (m *Model) setFocusByVisible(delta int) {
 	idx := m.focusIndex()
 	idx = (idx + delta + len(vis)) % len(vis)
 	m.formFocus = vis[idx]
+	if m.formFocus == fBondSlaves {
+		m.refreshBondCandidates()
+		if m.bondSlaveIdx >= len(m.bondCandidates) {
+			m.bondSlaveIdx = 0
+		}
+	}
 	m.syncInputFocus()
 	m.maybeRefreshVLANName()
 }
@@ -144,7 +151,6 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 	vals[inName] = c.Name
 	vals[inVLANParent] = c.VLANParent()
 	vals[inVLANID] = c.VLANID()
-	vals[inBondSlaves] = strings.Join(c.BondSlaves(), " ")
 	vals[inBondMiimon] = "100"
 	vals[inBondLacp] = "fast"
 	if c.IPv4 != nil {
@@ -168,7 +174,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		"eth0 / ens18 / bond0",
 		"parent: eth0 or bond0",
 		"VLAN ID 1-4094",
-		"slaves: eth0 eth1",
+		"",
 		"miimon ms",
 		"lacp-rate: fast|slow",
 		"IPv4 address",
@@ -178,7 +184,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		"IPv6 address/prefix",
 		"IPv6 gateway",
 	}
-	widths := [inCount]int{24, 24, 10, 40, 10, 12, 24, 24, 24, 40, 40, 40}
+	widths := [inCount]int{24, 24, 10, 8, 10, 12, 24, 24, 24, 40, 40, 40}
 
 	m.inputs = make([]textinput.Model, inCount)
 	for i := 0; i < inCount; i++ {
@@ -190,14 +196,105 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 		m.inputs[i] = ti
 	}
 
+	m.initBondSlavePicker(c.BondSlaves())
+
 	m.formFocus = fName
 	if ctype == interfaces.TypeVLAN {
 		m.formFocus = fVLANParent
+	}
+	if ctype == interfaces.TypeBond {
+		m.formFocus = fBondSlaves
 	}
 	m.syncInputFocus()
 	m.maybeRefreshVLANName()
 	m.screen = screenEditForm
 	m.status = ""
+}
+
+// initBondSlavePicker builds a checklist of UP NICs (plus already-selected slaves).
+func (m *Model) initBondSlavePicker(preselected []string) {
+	m.bondSelected = map[string]bool{}
+	for _, s := range preselected {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			m.bondSelected[s] = true
+		}
+	}
+	m.bondSlaveIdx = 0
+	m.refreshBondCandidates()
+}
+
+func (m *Model) refreshBondCandidates() {
+	bondName := ""
+	if len(m.inputs) > inName {
+		bondName = strings.TrimSpace(m.inputs[inName].Value())
+	}
+	seen := map[string]bool{}
+	var cands []string
+	for _, d := range m.devices {
+		if d.IsLoop || d.Name == "" || d.Name == bondName {
+			continue
+		}
+		switch d.Kind {
+		case "bond", "vlan", "bridge":
+			continue
+		}
+		up := strings.EqualFold(d.State, "up") || netdev.IsUp(d.Name)
+		if !up && !m.bondSelected[d.Name] {
+			continue
+		}
+		cands = append(cands, d.Name)
+		seen[d.Name] = true
+	}
+	for name, sel := range m.bondSelected {
+		if sel && !seen[name] && name != bondName {
+			cands = append(cands, name)
+		}
+	}
+	sort.Strings(cands)
+	m.bondCandidates = cands
+	if len(cands) == 0 {
+		m.bondSlaveIdx = 0
+		return
+	}
+	if m.bondSlaveIdx >= len(cands) {
+		m.bondSlaveIdx = len(cands) - 1
+	}
+}
+
+func (m *Model) selectedBondSlaves() []string {
+	var out []string
+	for _, name := range m.bondCandidates {
+		if m.bondSelected[name] {
+			out = append(out, name)
+		}
+	}
+	// Include selected that somehow dropped off the candidate list.
+	for name, sel := range m.bondSelected {
+		if !sel {
+			continue
+		}
+		found := false
+		for _, n := range out {
+			if n == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func (m *Model) toggleBondSlaveAt(idx int) {
+	if idx < 0 || idx >= len(m.bondCandidates) {
+		return
+	}
+	name := m.bondCandidates[idx]
+	m.bondSelected[name] = !m.bondSelected[name]
 }
 
 func inputIndex(focus int) int {
@@ -208,8 +305,6 @@ func inputIndex(focus int) int {
 		return inVLANParent
 	case fVLANID:
 		return inVLANID
-	case fBondSlaves:
-		return inBondSlaves
 	case fBondMiimon:
 		return inBondMiimon
 	case fBondLacp:
@@ -265,18 +360,52 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.confirm = confirmSave
 		m.screen = screenConfirm
 		return m, nil
-	case "tab", "down":
+	case "tab":
 		m.setFocusByVisible(1)
 		return m, nil
-	case "shift+tab", "up":
+	case "shift+tab":
 		m.setFocusByVisible(-1)
 		return m, nil
-	case "left", "right", " ", "enter":
-		if !m.isToggleFocus() {
-			break
+	case "down", "j":
+		if m.formFocus == fBondSlaves {
+			if len(m.bondCandidates) == 0 {
+				m.setFocusByVisible(1)
+				return m, nil
+			}
+			if m.bondSlaveIdx < len(m.bondCandidates)-1 {
+				m.bondSlaveIdx++
+				return m, nil
+			}
+			m.setFocusByVisible(1)
+			return m, nil
 		}
-		m.toggleFocused(msg.String() == "left")
+		m.setFocusByVisible(1)
 		return m, nil
+	case "up", "k":
+		if m.formFocus == fBondSlaves {
+			if m.bondSlaveIdx > 0 {
+				m.bondSlaveIdx--
+				return m, nil
+			}
+			m.setFocusByVisible(-1)
+			return m, nil
+		}
+		m.setFocusByVisible(-1)
+		return m, nil
+	case " ", "enter":
+		if m.formFocus == fBondSlaves {
+			m.toggleBondSlaveAt(m.bondSlaveIdx)
+			return m, nil
+		}
+		if m.isToggleFocus() {
+			m.toggleFocused(false)
+			return m, nil
+		}
+	case "left", "right":
+		if m.isToggleFocus() {
+			m.toggleFocused(msg.String() == "left")
+			return m, nil
+		}
 	}
 
 	if idx := inputIndex(m.formFocus); idx >= 0 {
@@ -284,6 +413,9 @@ func (m Model) updateEditForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputs[idx], cmd = m.inputs[idx].Update(msg)
 		if m.editType == interfaces.TypeVLAN && (idx == inVLANParent || idx == inVLANID) {
 			m.maybeRefreshVLANName()
+		}
+		if m.editType == interfaces.TypeBond && idx == inName {
+			m.refreshBondCandidates()
 		}
 		return m, cmd
 	}
@@ -363,8 +495,47 @@ func (m Model) viewEditForm() string {
 		b.WriteString(row(fVLANID, "VLAN ID", m.inputs[inVLANID].View()))
 	case interfaces.TypeBond:
 		b.WriteString("\n")
-		b.WriteString(subtleStyle.Render("  —— Bond ——") + "\n")
-		b.WriteString(row(fBondSlaves, "Slaves", m.inputs[inBondSlaves].View()))
+		b.WriteString(subtleStyle.Render("  —— Bond slaves (UP NICs — Space/Enter to toggle) ——") + "\n")
+		if len(m.bondCandidates) == 0 {
+			style := itemStyle
+			if m.formFocus == fBondSlaves {
+				style = selectedStyle
+			}
+			b.WriteString(style.Render("  (No UP interfaces found)") + "\n")
+		} else {
+			for i, name := range m.bondCandidates {
+				cursor := "  "
+				style := itemStyle
+				if m.formFocus == fBondSlaves && i == m.bondSlaveIdx {
+					cursor = "> "
+					style = selectedStyle
+				}
+				mark := "[ ]"
+				if m.bondSelected[name] {
+					mark = "[x]"
+				}
+				state := "?"
+				mac := ""
+				for _, d := range m.devices {
+					if d.Name == name {
+						state = strings.ToUpper(d.State)
+						if state == "" {
+							if netdev.IsUp(name) {
+								state = "UP"
+							} else {
+								state = "DOWN"
+							}
+						}
+						mac = d.MAC
+						break
+					}
+				}
+				line := fmt.Sprintf("%s%s %-12s %-6s %s", cursor, mark, name, state, mac)
+				b.WriteString(style.Render(line) + "\n")
+			}
+		}
+		sel := m.selectedBondSlaves()
+		b.WriteString(subtleStyle.Render("  Selected: "+strings.Join(sel, " ")) + "\n")
 		b.WriteString(row(fBondMode, "Mode", "< "+bondModes[m.bondModeIdx]+" >"))
 		b.WriteString(row(fBondMiimon, "Miimon", m.inputs[inBondMiimon].View()))
 		b.WriteString(row(fBondLacp, "LACP rate", m.inputs[inBondLacp].View()))
@@ -462,9 +633,9 @@ func (m *Model) buildConnFromForm() (*interfaces.Connection, error) {
 		// vlan_id helps ifupdown-vlan; dotted names usually work without it
 		primary.SetOption("vlan_id", id)
 	case interfaces.TypeBond:
-		slaves := strings.Fields(strings.TrimSpace(m.inputs[inBondSlaves].Value()))
+		slaves := m.selectedBondSlaves()
 		if len(slaves) == 0 {
-			return nil, fmt.Errorf("bond slaves are required (e.g. eth0 eth1)")
+			return nil, fmt.Errorf("select at least one UP slave interface")
 		}
 		primary.SetOption("bond-slaves", strings.Join(slaves, " "))
 		primary.SetOption("bond-mode", bondModes[m.bondModeIdx])

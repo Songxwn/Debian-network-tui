@@ -74,7 +74,7 @@ sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 |--------------|------|
 | Main menu    | `Up/Down` select, `Enter` confirm, `q` quit |
 | Connection list | `a` add, `d` delete, `Enter` edit, `Esc` back |
-| Edit form    | `Tab` next field, `Left/Right` toggle, `Ctrl+S` save, `Esc` cancel |
+| Edit form    | `Tab` next field, `Space` toggle (bond slaves / options), `Left/Right` change, `Ctrl+S` save, `Esc` cancel |
 | Confirm      | `y` / `n` |
 
 ### Main menu (nmtui-like)

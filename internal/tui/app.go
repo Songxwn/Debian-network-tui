@@ -57,11 +57,16 @@ type Model struct {
 	editType interfaces.ConnType
 	inputs   []textinput.Model
 
-	autoOn     bool
-	hotplugOn  bool
-	ipv4Method int
-	ipv6Method int
+	autoOn      bool
+	hotplugOn   bool
+	ipv4Method  int
+	ipv6Method  int
 	bondModeIdx int
+
+	// Bond slave picker (checklist of UP / already-selected NICs).
+	bondCandidates []string
+	bondSelected   map[string]bool
+	bondSlaveIdx   int
 
 	status   string
 	errMsg   string
@@ -218,7 +223,7 @@ func (m Model) viewFooter() string {
 		screenMenu:       "Up/Down select  Enter confirm  q quit",
 		screenEditList:   "Up/Down select  Enter edit  a add  d delete  Esc back",
 		screenAddType:    "Up/Down select  Enter confirm  Esc back",
-		screenEditForm:   "Tab next field  Left/Right toggle  Ctrl+S save  Esc cancel",
+		screenEditForm:   "Tab next field  Space toggle  Left/Right change  Ctrl+S save  Esc cancel",
 		screenActivate:   "Up/Down select  Enter activate  Esc back",
 		screenDeactivate: "Up/Down select  Enter deactivate  Esc back",
 		screenConfirm:    "y confirm  n/Esc cancel",
