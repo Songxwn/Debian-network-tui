@@ -37,8 +37,8 @@ func ValidateConnection(c *Connection) error {
 			return fmt.Errorf("VLAN requires a VLAN ID")
 		}
 		n, err := strconv.Atoi(id)
-		if err != nil || n < 1 || n > 4094 {
-			return fmt.Errorf("VLAN ID must be 1-4094")
+		if err != nil || n < 2 || n > 4094 {
+			return fmt.Errorf("VLAN ID must be 2-4094")
 		}
 	case TypeBond:
 		slaves := c.BondSlaves()

@@ -181,7 +181,7 @@ func (m *Model) startEditForm(c *interfaces.Connection, isNew bool, ctype interf
 	placeholders := [inCount]string{
 		"auto: parent.vlanid",
 		"",
-		"VLAN ID 1-4094",
+		"VLAN ID 2-4094",
 		"",
 		"miimon ms",
 		"lacp-rate: fast|slow",
@@ -758,8 +758,12 @@ func (m *Model) buildConnFromForm() (*interfaces.Connection, error) {
 		if id == "" {
 			return nil, fmt.Errorf("VLAN ID is required")
 		}
-		if _, err := strconv.Atoi(id); err != nil {
+		vid, err := strconv.Atoi(id)
+		if err != nil {
 			return nil, fmt.Errorf("VLAN ID must be a number")
+		}
+		if vid < 2 || vid > 4094 {
+			return nil, fmt.Errorf("VLAN ID must be 2-4094")
 		}
 		name = parent + "." + id
 		c.Name = name
