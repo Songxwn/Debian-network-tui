@@ -765,6 +765,7 @@ func (m *Model) backFromConfirm(yes bool) {
 	action := m.confirm
 	name := m.confirmN
 	m.confirm = confirmNone
+	defer m.touch()
 	if !yes {
 		switch action {
 		case confirmSave:

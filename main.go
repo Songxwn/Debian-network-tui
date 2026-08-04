@@ -30,9 +30,13 @@ func main() {
 
 	m := tui.New(cfgPath)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Fatal error: %v\n", err)
 		os.Exit(1)
+	}
+	if fm, ok := finalModel.(tui.Model); ok && fm.IdleTimedOut() {
+		fmt.Fprintln(os.Stderr, "Exited: idle timeout (no keyboard input)")
 	}
 }
 

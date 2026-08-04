@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -77,6 +78,10 @@ type Model struct {
 	msgBody  string
 	msgBack  screen
 
+	lastActivity time.Time
+	idleTimeout  time.Duration
+	idleTimedOut bool
+
 	quit bool
 }
 
@@ -109,9 +114,11 @@ var bondModes = []string{
 
 func New(cfgPath string) Model {
 	m := Model{
-		cfgPath: cfgPath,
-		screen:  screenMenu,
+		cfgPath:     cfgPath,
+		screen:      screenMenu,
+		idleTimeout: idleTimeoutFromEnv(),
 	}
+	m.touch()
 	m.reload()
 	return m
 }
@@ -141,16 +148,27 @@ func (m *Model) reload() {
 }
 
 func (m Model) Init() tea.Cmd {
-	return textinput.Blink
+	cmds := []tea.Cmd{textinput.Blink}
+	if m.idleTimeout > 0 {
+		cmds = append(cmds, tickIdle())
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case idleTickMsg:
+		if m.idleTimeout > 0 && time.Since(m.lastActivity) >= m.idleTimeout {
+			m.idleTimedOut = true
+			return m, tea.Quit
+		}
+		return m, tickIdle()
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
 	case tea.KeyMsg:
+		m.touch()
 		if m.quit {
 			return m, tea.Quit
 		}
@@ -234,7 +252,19 @@ func (m Model) viewFooter() string {
 	h := hints[m.screen]
 	path := subtleStyle.Render(m.cfgPath)
 	devHint := subtleStyle.Render(fmt.Sprintf("%d system interfaces", len(m.devices)))
-	return footerStyle.Render(h) + "\n" + path + "  " + devHint
+	idleHint := ""
+	if m.idleTimeout > 0 {
+		left := int(m.idleRemaining().Seconds() + 0.999)
+		if left < 0 {
+			left = 0
+		}
+		if left <= 10 {
+			idleHint = "  " + errorStyle.Render(fmt.Sprintf("idle exit in %ds", left))
+		} else {
+			idleHint = "  " + subtleStyle.Render(fmt.Sprintf("idle %ds", left))
+		}
+	}
+	return footerStyle.Render(h) + "\n" + path + "  " + devHint + idleHint
 }
 
 func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
