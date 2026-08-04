@@ -91,7 +91,10 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 3. **Deactivate a connection** — `ifdown <iface>`
 4. **Restart networking** — `systemctl restart networking`
 5. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
-6. **Quit**
+6. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
+7. **Quit**
+
+Place matching `.deb` files in the same directory as `debian-network-tui` before using option 6.
 
 ## Example: bond + VLAN
 

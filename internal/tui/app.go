@@ -11,6 +11,7 @@ import (
 
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
+	"github.com/debian-network-tui/debian-network-tui/internal/packages"
 )
 
 type screen int
@@ -36,6 +37,7 @@ const (
 	confirmDeactivate
 	confirmRestartNetworking
 	confirmClearAll
+	confirmInstallDebs
 )
 
 // Model is the root Bubble Tea model.
@@ -75,6 +77,9 @@ type Model struct {
 	vlanParentSelected   string
 	vlanParentIdx        int
 
+	pendingDebs   []string
+	pendingDebDir string
+
 	status   string
 	errMsg   string
 	confirm  confirmAction
@@ -96,6 +101,7 @@ var menuItems = []string{
 	"Deactivate a connection",
 	"Restart networking",
 	"Clear all connections",
+	"Install ifenslave/vlan (.deb)",
 	"Quit",
 }
 
@@ -305,6 +311,37 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirm = confirmClearAll
 			m.screen = screenConfirm
 		case 5:
+			dir, err := packages.SelfDir()
+			if err != nil {
+				m.showMsg("Install failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			found, err := packages.FindBondVLANDebs(dir)
+			if err != nil {
+				m.showMsg("Install failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			if len(found.Ifenslave) == 0 || len(found.VLAN) == 0 {
+				detail := fmt.Sprintf("Searched: %s\n", dir)
+				if len(found.Ifenslave) == 0 {
+					detail += "Missing: ifenslave_*.deb\n"
+				}
+				if len(found.VLAN) == 0 {
+					detail += "Missing: vlan_*.deb\n"
+				}
+				if n := len(found.Found()); n > 0 {
+					detail += "Partial matches found, but both packages are required."
+				} else {
+					detail += "Place ifenslave and vlan .deb files next to this binary."
+				}
+				m.showMsg("Packages not found", detail, screenMenu)
+				return m, nil
+			}
+			m.pendingDebDir = dir
+			m.pendingDebs = found.Found()
+			m.confirm = confirmInstallDebs
+			m.screen = screenConfirm
+		case 6:
 			return m, tea.Quit
 		}
 	}

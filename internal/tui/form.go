@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
+	"github.com/debian-network-tui/debian-network-tui/internal/packages"
 )
 
 // Form focus indices (shared layout; unused fields skipped in navigation via visibleFields).
@@ -924,6 +926,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenMenu
 		case confirmClearAll:
 			m.screen = screenMenu
+		case confirmInstallDebs:
+			m.screen = screenMenu
 		default:
 			m.screen = screenMenu
 		}
@@ -983,6 +987,24 @@ func (m *Model) backFromConfirm(yes bool) {
 		}
 		m.reload()
 		m.showMsg("Cleared", fmt.Sprintf("All connections removed from %s\n(and interfaces.d drop-ins).\nOnly loopback (lo) remains.\nBackups were created.\nUse \"Restart networking\" to apply.", m.cfgPath), screenMenu)
+	case confirmInstallDebs:
+		debs := append([]string{}, m.pendingDebs...)
+		msg, err := packages.InstallLocalDebs(debs)
+		m.pendingDebs = nil
+		if err != nil {
+			body := err.Error()
+			if msg != "" {
+				body = msg
+			}
+			m.showMsg("Install failed", body, screenMenu)
+			return
+		}
+		// Truncate very long apt output for the TUI.
+		if len(msg) > 1200 {
+			msg = msg[len(msg)-1200:]
+			msg = "...\n" + msg
+		}
+		m.showMsg("Install complete", "Installed local packages with apt:\n"+msg, screenMenu)
 	}
 }
 
@@ -1017,6 +1039,13 @@ func (m Model) viewConfirm() string {
 		text = "Restart networking service?\n(systemctl restart networking)\nThis may interrupt SSH / network connectivity."
 	case confirmClearAll:
 		text = fmt.Sprintf("Clear ALL network connections in %s?\nAlso clears interfaces.d drop-ins.\nOnly loopback (lo) will remain.\nBackups will be created.\nTHIS CAN CUT REMOTE ACCESS.", m.cfgPath)
+	case confirmInstallDebs:
+		var names []string
+		for _, p := range m.pendingDebs {
+			names = append(names, filepath.Base(p))
+		}
+		text = fmt.Sprintf("Install local packages with apt from:\n%s\n\n%s\n\nRun: apt-get install -y <debs>",
+			m.pendingDebDir, strings.Join(names, "\n"))
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")
