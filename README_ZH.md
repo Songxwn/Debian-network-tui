@@ -27,6 +27,7 @@
 - IPv4：`dhcp` / `static` / `manual` / disabled（新建默认 disabled）
 - IPv6：`disabled` / `dhcp` / `static` / `auto`
 - 独立编辑 DNS：`/etc/resolv.conf`
+- 一键用本地配置文件覆盖 `/etc/resolv.conf`
 - `auto`、`allow-hotplug`
 - 激活 / 停用：`ifup` / `ifdown`
 - 重启网络服务
@@ -50,8 +51,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.3-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.3-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.4-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.4-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 推送 `v*` 标签后，GitHub Actions 会自动编译并发布。
@@ -103,31 +104,37 @@ sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
 ### 主菜单
 
 1. **Edit a connection** — 编辑网卡配置
-2. **Edit DNS (/etc/resolv.conf)** — 编辑 DNS
-3. **Activate a connection** — `ifup`
-4. **Deactivate a connection** — `ifdown`
-5. **Restart networking** — 重启网络服务
-6. **Clear all connections** — 清空网卡配置（保留 lo）
-7. **Install ifenslave/vlan (.deb)** — 安装本地 deb
-8. **Clear apt sources** — 清空 apt 源
-9. **Apply apt sources from file** — 从文件应用 apt 源
-10. **Configure SSH server (root key)** — 配置 SSH 与 root 密钥登录
-11. **Quit** — 退出
+2. **Edit DNS (/etc/resolv.conf)** — 编辑 DNS（`Ctrl+O` 可从本地文件覆盖）
+3. **Apply DNS from file (overwrite)** — 用二进制同目录的 `resolv.conf` / `dns.conf` 等覆盖系统 DNS（先备份）
+4. **Activate a connection** — `ifup`
+5. **Deactivate a connection** — `ifdown`
+6. **Restart networking** — 重启网络服务
+7. **Clear all connections** — 清空网卡配置（保留 lo）
+8. **Install ifenslave/vlan (.deb)** — 安装本地 deb
+9. **Clear apt sources** — 清空 apt 源
+10. **Apply apt sources from file** — 从文件应用 apt 源
+11. **Configure SSH server (root key)** — 配置 SSH 与 root 密钥登录
+12. **Quit** — 退出
 
 ### 本地文件约定（与二进制同目录）
 
-**Bond/VLAN 包（菜单 7）：**
+**DNS（菜单 3）：**
+
+- `resolv.conf` / `dns-resolv.conf` / `dns.conf` → 覆盖 `/etc/resolv.conf`
+- 示例：`examples/resolv.conf`
+
+**Bond/VLAN 包（菜单 8）：**
 
 - `ifenslave_*.deb`
 - `vlan_*.deb`
 
-**APT 源（菜单 8–9）：**
+**APT 源（菜单 9–10）：**
 
 - `sources.list` 或 `apt-sources.list` → `/etc/apt/sources.list`
 - `*.list` / `*.sources` → `/etc/apt/sources.list.d/`
 - 示例：`examples/sources.list`
 
-**SSH（菜单 10）：**
+**SSH（菜单 11）：**
 
 - `openssh-server_*.deb`（可选，没有则走 apt）
 - `ssh-root.conf`（可选）：

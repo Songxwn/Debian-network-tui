@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/debian-network-tui/debian-network-tui/internal/packages"
 	"github.com/debian-network-tui/debian-network-tui/internal/resolvconf"
 )
 
@@ -64,6 +65,35 @@ func (m *Model) startDNSForm() {
 	m.screen = screenDNS
 }
 
+func (m *Model) beginApplyDNSFromFile() {
+	dir, err := packages.SelfDir()
+	if err != nil {
+		m.showMsg("Apply DNS failed", err.Error(), screenMenu)
+		return
+	}
+	files, err := resolvconf.FindLocalConfigs(dir)
+	if err != nil {
+		m.showMsg("Apply DNS failed", err.Error(), screenMenu)
+		return
+	}
+	if len(files) == 0 {
+		m.showMsg("No DNS config file",
+			fmt.Sprintf("Searched: %s\n\nPlace one of:\n  resolv.conf\n  dns-resolv.conf\n  dns.conf\nnext to this binary.\nSee examples/resolv.conf", dir),
+			screenMenu)
+		return
+	}
+	dest := resolvconf.DefaultPath
+	if v := os.Getenv("RESOLV_CONF"); v != "" {
+		dest = v
+	}
+	m.pendingDNSDir = dir
+	m.pendingDNSFiles = files
+	m.pendingDNSDest = dest
+	m.pendingDNSBack = m.screen
+	m.confirm = confirmApplyDNSFile
+	m.screen = screenConfirm
+}
+
 func (m *Model) syncDNSFocus() {
 	for i := range m.dnsInputs {
 		if i == m.dnsFocus {
@@ -85,6 +115,9 @@ func (m Model) updateDNSForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+s":
 		m.confirm = confirmSaveDNS
 		m.screen = screenConfirm
+		return m, nil
+	case "ctrl+o":
+		m.beginApplyDNSFromFile()
 		return m, nil
 	case "tab", "down":
 		m.dnsFocus = (m.dnsFocus + 1) % dnsFieldCount
@@ -123,7 +156,7 @@ func (m Model) viewDNSForm() string {
 	b.WriteString(row(dnsNS3, "Nameserver 3", m.dnsInputs[dnsNS3].View()))
 	b.WriteString(row(dnsSearch, "Search", m.dnsInputs[dnsSearch].View()))
 	b.WriteString("\n")
-	b.WriteString(subtleStyle.Render("  Ctrl+S to save (backup created automatically)") + "\n")
+	b.WriteString(subtleStyle.Render("  Ctrl+S save  |  Ctrl+O overwrite from local file") + "\n")
 	return b.String()
 }
 

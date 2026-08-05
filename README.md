@@ -27,6 +27,7 @@ All UI text is English so it works on minimal installs without CJK fonts.
 - IPv4: `dhcp` / `static` / `manual` / disabled
 - IPv6: `disabled` / `dhcp` / `static` / `auto` (`manual` + `accept_ra 1`)
 - DNS via dedicated editor for `/etc/resolv.conf` (nameservers + search)
+- One-click overwrite of `/etc/resolv.conf` from a local file next to the binary
 - `auto` and `allow-hotplug` toggles
 - Activate / deactivate via `ifup` / `ifdown`
 - Automatic backup before save
@@ -45,8 +46,8 @@ Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tu
 
 ```bash
 # amd64 example
-tar -xzf debian-network-tui-v0.3.3-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.3-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.4-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.4-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
@@ -100,20 +101,23 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 ### Main menu (nmtui-like)
 
 1. **Edit a connection** — edit interfaces config
-2. **Edit DNS (/etc/resolv.conf)** — nameservers and search domains
-3. **Activate a connection** — `ifup <iface>`
-4. **Deactivate a connection** — `ifdown <iface>`
-5. **Restart networking** — `systemctl restart networking`
-6. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
-7. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
-8. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
-9. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
-10. **Configure SSH server (root key)** — install `openssh-server` (local `.deb` or apt), enable root key login, import pubkey
-11. **Quit**
+2. **Edit DNS (/etc/resolv.conf)** — nameservers and search domains (`Ctrl+O` to overwrite from local file)
+3. **Apply DNS from file (overwrite)** — copy `resolv.conf` / `dns.conf` / `dns-resolv.conf` next to the binary over `/etc/resolv.conf` (backs up first)
+4. **Activate a connection** — `ifup <iface>`
+5. **Deactivate a connection** — `ifdown <iface>`
+6. **Restart networking** — `systemctl restart networking`
+7. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
+8. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
+9. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
+10. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
+11. **Configure SSH server (root key)** — install `openssh-server` (local `.deb` or apt), enable root key login, import pubkey
+12. **Quit**
 
-Place matching `.deb` files in the same directory as `debian-network-tui` before using option 7.
+Place matching `.deb` files in the same directory as `debian-network-tui` before using option 8.
 
-For SSH setup (option 10), place beside the binary:
+For DNS overwrite (option 3), place beside the binary one of: `resolv.conf`, `dns-resolv.conf`, `dns.conf` (see `examples/resolv.conf`).
+
+For SSH setup (option 11), place beside the binary:
 
 - `openssh-server_*.deb` (optional; otherwise apt is used)
 - `ssh-root.conf` (optional) with `PubkeyFile=root.pub`

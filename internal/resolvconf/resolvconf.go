@@ -153,14 +153,103 @@ func (c *Config) Save() error {
 }
 
 func backup(path string) error {
+	_, err := backupTo(path)
+	return err
+}
+
+func backupTo(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return "", nil
 		}
-		// Symlink read works via ReadFile
-		return fmt.Errorf("backup read: %w", err)
+		return "", fmt.Errorf("backup read: %w", err)
 	}
 	bak := fmt.Sprintf("%s.bak.%s", path, time.Now().Format("20060102-150405"))
-	return os.WriteFile(bak, data, 0o644)
+	if err := os.WriteFile(bak, data, 0o644); err != nil {
+		return "", err
+	}
+	return bak, nil
+}
+
+// FindLocalConfigs looks for a resolv.conf template next to the binary.
+func FindLocalConfigs(dir string) ([]string, error) {
+	var out []string
+	seen := map[string]struct{}{}
+	add := func(p string) {
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	for _, name := range []string{"resolv.conf", "dns-resolv.conf", "dns.conf"} {
+		p := filepath.Join(dir, name)
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			add(p)
+		}
+	}
+	entries, err := os.ReadDir(dir)
+	if err == nil {
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			n := strings.ToLower(e.Name())
+			if strings.HasPrefix(n, "resolv.conf.") && !strings.Contains(n, ".bak.") {
+				add(filepath.Join(dir, e.Name()))
+			}
+		}
+	}
+	return out, nil
+}
+
+// OverwriteFromFile replaces dest with the exact contents of src (after backup).
+// Symlinks at dest are removed so a regular file is written.
+func OverwriteFromFile(src, dest string) (backupPath string, err error) {
+	if dest == "" {
+		dest = DefaultPath
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", src, err)
+	}
+	if len(strings.TrimSpace(string(data))) == 0 {
+		return "", fmt.Errorf("%s is empty", src)
+	}
+	// Light validation: at least one nameserver line if the file looks like resolv.conf.
+	cfg, loadErr := Load(src)
+	if loadErr == nil && len(cfg.Nameservers) == 0 {
+		return "", fmt.Errorf("%s has no nameserver lines", src)
+	}
+
+	bak, err := backupTo(dest)
+	if err != nil {
+		return "", err
+	}
+	if fi, err := os.Lstat(dest); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		if err := os.Remove(dest); err != nil {
+			return bak, fmt.Errorf("remove symlink %s: %w", dest, err)
+		}
+	}
+	dir := filepath.Dir(dest)
+	tmp, err := os.CreateTemp(dir, ".resolv.conf-*.tmp")
+	if err != nil {
+		return bak, fmt.Errorf("create temp file: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return bak, fmt.Errorf("write temp file: %w", err)
+	}
+	_ = tmp.Chmod(0o644)
+	if err := tmp.Close(); err != nil {
+		return bak, err
+	}
+	if err := os.Rename(tmpName, dest); err != nil {
+		return bak, fmt.Errorf("replace %s: %w", dest, err)
+	}
+	return bak, nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
+	"github.com/debian-network-tui/debian-network-tui/internal/resolvconf"
 	"github.com/debian-network-tui/debian-network-tui/internal/sshsetup"
 )
 
@@ -930,6 +931,8 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = screenMenu
 		case confirmSaveDNS:
 			m.screen = screenDNS
+		case confirmApplyDNSFile:
+			m.screen = m.pendingDNSBack
 		case confirmSetupSSH:
 			m.screen = screenMenu
 		default:
@@ -1040,6 +1043,32 @@ func (m *Model) backFromConfirm(yes bool) {
 			extra = "\nReplaced symlink with a regular file."
 		}
 		m.showMsg("DNS saved", fmt.Sprintf("Wrote %s\nBackup created.%s", cfg.Path, extra), screenMenu)
+	case confirmApplyDNSFile:
+		files := append([]string{}, m.pendingDNSFiles...)
+		dest := m.pendingDNSDest
+		dir := m.pendingDNSDir
+		m.pendingDNSFiles = nil
+		if dest == "" {
+			dest = resolvconf.DefaultPath
+		}
+		if len(files) == 0 {
+			m.showMsg("Apply DNS failed", "No local resolv.conf found.", screenMenu)
+			return
+		}
+		src := files[0]
+		bak, err := resolvconf.OverwriteFromFile(src, dest)
+		if err != nil {
+			m.showMsg("Apply DNS failed", err.Error(), screenMenu)
+			return
+		}
+		extra := fmt.Sprintf("Source: %s\nDest: %s", src, dest)
+		if bak != "" {
+			extra += "\nBackup: " + bak
+		}
+		if len(files) > 1 {
+			extra += fmt.Sprintf("\n(Other candidates in %s were ignored; used first match.)", dir)
+		}
+		m.showMsg("DNS overwritten", extra, screenMenu)
 	case confirmSetupSSH:
 		dir := m.pendingSSHDir
 		res, err := sshsetup.Run(dir, packages.InstallLocalDebs)
@@ -1119,6 +1148,17 @@ func (m Model) viewConfirm() string {
 		if m.dnsSymlink != "" {
 			text += "\nSymlink will be replaced with a regular file."
 		}
+	case confirmApplyDNSFile:
+		src := "(none)"
+		if len(m.pendingDNSFiles) > 0 {
+			src = m.pendingDNSFiles[0]
+		}
+		dest := m.pendingDNSDest
+		if dest == "" {
+			dest = resolvconf.DefaultPath
+		}
+		text = fmt.Sprintf("Overwrite DNS config?\n\n%s\n  → %s\n\nExisting file is backed up first.\nSymlink (if any) becomes a regular file.",
+			src, dest)
 	case confirmSetupSSH:
 		debLine := "none (will use apt)"
 		if len(m.pendingSSHDebs) > 0 {

@@ -54,6 +54,55 @@ search example.com local
 	}
 }
 
+func TestOverwriteFromFile(t *testing.T) {
+	dir := t.TempDir()
+	src := filepath.Join(dir, "resolv.conf")
+	dest := filepath.Join(dir, "etc-resolv.conf")
+	content := "nameserver 9.9.9.9\nnameserver 149.112.112.112\n# custom\noptions edns0\n"
+	if err := os.WriteFile(src, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dest, []byte("nameserver 1.1.1.1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	bak, err := resolvconf.OverwriteFromFile(src, dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bak == "" {
+		t.Fatal("expected backup path")
+	}
+	got, err := os.ReadFile(dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != content {
+		t.Fatalf("dest content mismatch:\n%s", got)
+	}
+	old, err := os.ReadFile(bak)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(old), "1.1.1.1") {
+		t.Fatalf("backup wrong: %s", old)
+	}
+}
+
+func TestFindLocalConfigs(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "dns.conf")
+	if err := os.WriteFile(path, []byte("nameserver 8.8.8.8\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	found, err := resolvconf.FindLocalConfigs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0] != path {
+		t.Fatalf("found=%v", found)
+	}
+}
+
 func TestValidateRejectsBadIP(t *testing.T) {
 	c := &resolvconf.Config{Nameservers: []string{"not-an-ip"}}
 	if err := c.Validate(); err == nil {

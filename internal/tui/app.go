@@ -44,6 +44,7 @@ const (
 	confirmClearAptSources
 	confirmApplyAptSources
 	confirmSaveDNS
+	confirmApplyDNSFile
 	confirmSetupSSH
 )
 
@@ -90,6 +91,11 @@ type Model struct {
 	pendingAptCfgs []aptsources.LocalConfig
 	pendingAptDir  string
 
+	pendingDNSFiles []string
+	pendingDNSDir   string
+	pendingDNSDest  string
+	pendingDNSBack  screen
+
 	pendingSSHDir   string
 	pendingSSHDebs  []string
 	pendingSSHPub   string
@@ -119,6 +125,7 @@ type Model struct {
 var menuItems = []string{
 	"Edit a connection",
 	"Edit DNS (/etc/resolv.conf)",
+	"Apply DNS from file (overwrite)",
 	"Activate a connection",
 	"Deactivate a connection",
 	"Restart networking",
@@ -329,20 +336,22 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case 1:
 			m.startDNSForm()
 		case 2:
-			m.reload()
-			m.actIdx = 0
-			m.screen = screenActivate
+			m.beginApplyDNSFromFile()
 		case 3:
 			m.reload()
 			m.actIdx = 0
-			m.screen = screenDeactivate
+			m.screen = screenActivate
 		case 4:
+			m.reload()
+			m.actIdx = 0
+			m.screen = screenDeactivate
+		case 5:
 			m.confirm = confirmRestartNetworking
 			m.screen = screenConfirm
-		case 5:
+		case 6:
 			m.confirm = confirmClearAll
 			m.screen = screenConfirm
-		case 6:
+		case 7:
 			dir, err := packages.SelfDir()
 			if err != nil {
 				m.showMsg("Install failed", err.Error(), screenMenu)
@@ -373,10 +382,10 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pendingDebs = found.Found()
 			m.confirm = confirmInstallDebs
 			m.screen = screenConfirm
-		case 7:
+		case 8:
 			m.confirm = confirmClearAptSources
 			m.screen = screenConfirm
-		case 8:
+		case 9:
 			dir, err := packages.SelfDir()
 			if err != nil {
 				m.showMsg("Apply failed", err.Error(), screenMenu)
@@ -397,7 +406,7 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.pendingAptCfgs = cfgs
 			m.confirm = confirmApplyAptSources
 			m.screen = screenConfirm
-		case 9:
+		case 10:
 			dir, err := packages.SelfDir()
 			if err != nil {
 				m.showMsg("SSH setup failed", err.Error(), screenMenu)
@@ -419,7 +428,7 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.confirm = confirmSetupSSH
 			m.screen = screenConfirm
-		case 10:
+		case 11:
 			return m, tea.Quit
 		}
 	}
