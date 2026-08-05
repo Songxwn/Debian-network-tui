@@ -52,11 +52,28 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.6-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.6-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.7-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.7-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
-推送 `v*` 标签后，GitHub Actions 会自动编译并发布。
+### Setup ISO
+
+每个 Release 还会发布 `debian-network-tui-<version>.iso`，内含：
+
+- `debian-network-tui`（linux amd64）及其它架构（`bin/`）
+- 示例配置：`resolv.conf`、`sources.list`、`ssh-root.conf`、`root.pub`
+- `packages/README.txt` — 说明如何放入 `ifenslave` / `vlan` 的 `.deb`
+
+```bash
+mkdir -p /mnt/dntui /root/dntui-setup
+mount -o loop debian-network-tui-v0.3.7.iso /mnt/dntui
+cp -a /mnt/dntui/. /root/dntui-setup/
+umount /mnt/dntui
+# 编辑 /root/dntui-setup/root.pub，并放入 ifenslave_*.deb + vlan_*.deb，然后：
+cd /root/dntui-setup && sudo ./debian-network-tui
+```
+
+推送 `v*` 标签后，GitHub Actions 会自动编译二进制、生成 ISO 并发布。
 
 ## 编译
 

@@ -43,15 +43,32 @@ No NetworkManager dependency — suitable for servers and minimal installs.
 
 ## Download
 
-Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tui/releases):
+Get binaries and the setup ISO from [GitHub Releases](https://github.com/Songxwn/Debian-network-tui/releases):
 
 ```bash
-# amd64 example
-tar -xzf debian-network-tui-v0.3.6-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.6-linux-amd64 /usr/local/bin/debian-network-tui
+# amd64 tarball
+tar -xzf debian-network-tui-v0.3.7-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.7-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
-Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
+### Setup ISO
+
+Each release also publishes `debian-network-tui-<version>.iso` containing:
+
+- `debian-network-tui` (linux amd64) plus other arches under `bin/`
+- Example configs: `resolv.conf`, `sources.list`, `ssh-root.conf`, `root.pub`
+- `packages/README.txt` — where to put `ifenslave` / `vlan` `.deb` files
+
+```bash
+mkdir -p /mnt/dntui /root/dntui-setup
+mount -o loop debian-network-tui-v0.3.7.iso /mnt/dntui
+cp -a /mnt/dntui/. /root/dntui-setup/
+umount /mnt/dntui
+# Edit /root/dntui-setup/root.pub and add ifenslave_*.deb + vlan_*.deb, then:
+cd /root/dntui-setup && sudo ./debian-network-tui
+```
+
+Pushing a `v*` tag triggers GitHub Actions to build binaries, the ISO, and publish a Release.
 
 ## Build
 
