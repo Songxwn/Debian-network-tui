@@ -47,8 +47,8 @@ Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tu
 
 ```bash
 # amd64 example
-tar -xzf debian-network-tui-v0.3.5-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.5-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.6-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.6-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.

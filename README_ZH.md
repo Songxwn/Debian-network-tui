@@ -52,8 +52,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.5-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.5-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.6-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.6-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 推送 `v*` 标签后，GitHub Actions 会自动编译并发布。
