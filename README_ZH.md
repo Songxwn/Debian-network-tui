@@ -28,6 +28,7 @@
 - IPv6：`disabled` / `dhcp` / `static` / `auto`
 - 独立编辑 DNS：`/etc/resolv.conf`
 - 一键用本地配置文件覆盖 `/etc/resolv.conf`
+- 一键执行：覆盖 DNS + 清空/应用 apt 源 + 安装 ifenslave/vlan + 配置 SSH（带实时日志）
 - `auto`、`allow-hotplug`
 - 激活 / 停用：`ifup` / `ifdown`
 - 重启网络服务
@@ -51,8 +52,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.4-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.4-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.5-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.5-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 推送 `v*` 标签后，GitHub Actions 会自动编译并发布。
@@ -114,27 +115,30 @@ sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
 9. **Clear apt sources** — 清空 apt 源
 10. **Apply apt sources from file** — 从文件应用 apt 源
 11. **Configure SSH server (root key)** — 配置 SSH 与 root 密钥登录
-12. **Quit** — 退出
+12. **One-shot setup (DNS, apt, bond/vlan, SSH)** — 按顺序一键执行上述文件化步骤，并显示实时日志（需本地文件齐全）
+13. **Quit** — 退出
 
 ### 本地文件约定（与二进制同目录）
 
-**DNS（菜单 3）：**
+**一键部署（菜单 12）所需文件：** DNS + APT + Bond/VLAN deb + SSH 公钥（见下方各项）。
+
+**DNS（菜单 3 / 12）：**
 
 - `resolv.conf` / `dns-resolv.conf` / `dns.conf` → 覆盖 `/etc/resolv.conf`
 - 示例：`examples/resolv.conf`
 
-**Bond/VLAN 包（菜单 8）：**
+**Bond/VLAN 包（菜单 8 / 12）：**
 
 - `ifenslave_*.deb`
 - `vlan_*.deb`
 
-**APT 源（菜单 9–10）：**
+**APT 源（菜单 9–10 / 12）：**
 
 - `sources.list` 或 `apt-sources.list` → `/etc/apt/sources.list`
 - `*.list` / `*.sources` → `/etc/apt/sources.list.d/`
 - 示例：`examples/sources.list`
 
-**SSH（菜单 11）：**
+**SSH（菜单 11 / 12）：**
 
 - `openssh-server_*.deb`（可选，没有则走 apt）
 - `ssh-root.conf`（可选）：

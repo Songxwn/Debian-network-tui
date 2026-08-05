@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/debian-network-tui/debian-network-tui/internal/aptsources"
+	"github.com/debian-network-tui/debian-network-tui/internal/bootstrap"
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
@@ -897,14 +898,14 @@ func (m Model) viewActList(activate bool) string {
 func (m Model) updateConfirm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "n", "esc", "q":
-		m.backFromConfirm(false)
+		return m, m.backFromConfirm(false)
 	case "y", "enter":
-		m.backFromConfirm(true)
+		return m, m.backFromConfirm(true)
 	}
 	return m, nil
 }
 
-func (m *Model) backFromConfirm(yes bool) {
+func (m *Model) backFromConfirm(yes bool) tea.Cmd {
 	action := m.confirm
 	name := m.confirmN
 	m.confirm = confirmNone
@@ -935,17 +936,20 @@ func (m *Model) backFromConfirm(yes bool) {
 			m.screen = m.pendingDNSBack
 		case confirmSetupSSH:
 			m.screen = screenMenu
+		case confirmOneShot:
+			m.screen = screenMenu
+			m.pendingBoot = nil
 		default:
 			m.screen = screenMenu
 		}
-		return
+		return nil
 	}
 
 	switch action {
 	case confirmDelete:
 		if err := m.file.DeleteConnection(name); err != nil {
 			m.showMsg("Delete failed", err.Error(), screenEditList)
-			return
+			return nil
 		}
 		m.reload()
 		m.showMsg("Deleted", "Removed connection "+name+"\nA backup was created.", screenEditList)
@@ -954,11 +958,11 @@ func (m *Model) backFromConfirm(yes bool) {
 		if err != nil {
 			m.status = err.Error()
 			m.screen = screenEditForm
-			return
+			return nil
 		}
 		if err := m.file.SaveConnection(c); err != nil {
 			m.showMsg("Save failed", err.Error(), screenEditForm)
-			return
+			return nil
 		}
 		extra := ""
 		if c.Type() == interfaces.TypeBond {
@@ -969,28 +973,28 @@ func (m *Model) backFromConfirm(yes bool) {
 	case confirmActivate:
 		if err := netdev.IfUp(name); err != nil {
 			m.showMsg("Activate failed", err.Error(), screenActivate)
-			return
+			return nil
 		}
 		m.reload()
 		m.showMsg("Activated", "Ran ifup "+name+".", screenActivate)
 	case confirmDeactivate:
 		if err := netdev.IfDown(name); err != nil {
 			m.showMsg("Deactivate failed", err.Error(), screenDeactivate)
-			return
+			return nil
 		}
 		m.reload()
 		m.showMsg("Deactivated", "Ran ifdown "+name+".", screenDeactivate)
 	case confirmRestartNetworking:
 		if err := netdev.ReloadNetworking(); err != nil {
 			m.showMsg("Restart failed", err.Error(), screenMenu)
-			return
+			return nil
 		}
 		m.reload()
 		m.showMsg("Networking restarted", "Networking service was restarted.\nSSH sessions may drop briefly.", screenMenu)
 	case confirmClearAll:
 		if err := m.file.ClearAllConnections(); err != nil {
 			m.showMsg("Clear failed", err.Error(), screenMenu)
-			return
+			return nil
 		}
 		m.reload()
 		m.showMsg("Cleared", fmt.Sprintf("All connections removed from %s\n(and interfaces.d drop-ins).\nOnly loopback (lo) remains.\nBackups were created.\nUse \"Restart networking\" to apply.", m.cfgPath), screenMenu)
@@ -1004,7 +1008,7 @@ func (m *Model) backFromConfirm(yes bool) {
 				body = msg
 			}
 			m.showMsg("Install failed", body, screenMenu)
-			return
+			return nil
 		}
 		if len(msg) > 1200 {
 			msg = msg[len(msg)-1200:]
@@ -1015,7 +1019,7 @@ func (m *Model) backFromConfirm(yes bool) {
 		note, err := aptsources.Default().Clear()
 		if err != nil {
 			m.showMsg("Clear apt sources failed", err.Error()+"\n"+note, screenMenu)
-			return
+			return nil
 		}
 		m.showMsg("Apt sources cleared", note+"\n\nRun apt-get update after applying new sources.", screenMenu)
 	case confirmApplyAptSources:
@@ -1024,7 +1028,7 @@ func (m *Model) backFromConfirm(yes bool) {
 		note, err := aptsources.Default().Apply(cfgs)
 		if err != nil {
 			m.showMsg("Apply apt sources failed", err.Error()+"\n"+note, screenMenu)
-			return
+			return nil
 		}
 		m.showMsg("Apt sources applied", note+"\n\nSuggested: apt-get update", screenMenu)
 	case confirmSaveDNS:
@@ -1032,11 +1036,11 @@ func (m *Model) backFromConfirm(yes bool) {
 		if err != nil {
 			m.status = err.Error()
 			m.screen = screenDNS
-			return
+			return nil
 		}
 		if err := cfg.Save(); err != nil {
 			m.showMsg("DNS save failed", err.Error(), screenDNS)
-			return
+			return nil
 		}
 		extra := ""
 		if m.dnsSymlink != "" {
@@ -1053,13 +1057,13 @@ func (m *Model) backFromConfirm(yes bool) {
 		}
 		if len(files) == 0 {
 			m.showMsg("Apply DNS failed", "No local resolv.conf found.", screenMenu)
-			return
+			return nil
 		}
 		src := files[0]
 		bak, err := resolvconf.OverwriteFromFile(src, dest)
 		if err != nil {
 			m.showMsg("Apply DNS failed", err.Error(), screenMenu)
-			return
+			return nil
 		}
 		extra := fmt.Sprintf("Source: %s\nDest: %s", src, dest)
 		if bak != "" {
@@ -1079,7 +1083,7 @@ func (m *Model) backFromConfirm(yes bool) {
 				detail = res.InstallDetail + "\n\n" + detail
 			}
 			m.showMsg("SSH setup failed", detail, screenMenu)
-			return
+			return nil
 		}
 		msg := fmt.Sprintf("Install: %s\nPubkey: %s\nKeys imported: %d new / %d total\nSSHD drop-in: %s\nPermitRootLogin: prohibit-password (key only)\nSSH service restarted.",
 			res.InstallMethod, res.PubkeyFile, res.KeysAdded, res.KeysTotal, res.SSHDDropIn)
@@ -1089,7 +1093,23 @@ func (m *Model) backFromConfirm(yes bool) {
 			msg += "\n\n" + res.InstallDetail
 		}
 		m.showMsg("SSH configured", msg, screenMenu)
+	case confirmOneShot:
+		if m.pendingBoot == nil {
+			m.showMsg("One-shot setup failed", "No plan prepared.", screenMenu)
+			return nil
+		}
+		m.bootLog = []string{
+			"Starting one-shot setup…",
+			"Order: DNS → clear apt → apply apt → ifenslave/vlan → SSH",
+			"",
+		}
+		m.bootScroll = 0
+		m.bootDone = false
+		m.bootErr = nil
+		m.screen = screenBootLog
+		return bootStepCmd(m.pendingBoot, bootstrap.StepDNS)
 	}
+	return nil
 }
 
 func (m *Model) showMsg(title, body string, back screen) {
@@ -1170,6 +1190,13 @@ func (m Model) viewConfirm() string {
 		}
 		text = fmt.Sprintf("Configure OpenSSH for root key login?\n\nDir: %s\nInstall via: %s\nLocal debs: %s\nPubkey file: %s\n\nWill set PermitRootLogin prohibit-password,\nimport key into /root/.ssh/authorized_keys,\nand restart ssh.",
 			m.pendingSSHDir, m.pendingSSHMethod, debLine, m.pendingSSHPub)
+	case confirmOneShot:
+		summary := "(no plan)"
+		if m.pendingBoot != nil {
+			summary = strings.Join(m.pendingBoot.SummaryLines(), "\n")
+		}
+		text = "Run ONE-SHOT setup?\n\n" + summary +
+			"\n\nThis will modify DNS, apt sources, install packages,\nand configure SSH. Backups are created where applicable.\nLive logs will be shown on the next screen."
 	}
 	return sectionStyle.Render("Confirm") + "\n\n" + itemStyle.Render(text) + "\n\n" +
 		selectedStyle.Render("  [y] Yes    [n] No")

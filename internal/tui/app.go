@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/debian-network-tui/debian-network-tui/internal/aptsources"
+	"github.com/debian-network-tui/debian-network-tui/internal/bootstrap"
 	"github.com/debian-network-tui/debian-network-tui/internal/interfaces"
 	"github.com/debian-network-tui/debian-network-tui/internal/netdev"
 	"github.com/debian-network-tui/debian-network-tui/internal/packages"
@@ -28,6 +29,7 @@ const (
 	screenDeactivate
 	screenConfirm
 	screenMessage
+	screenBootLog
 )
 
 type confirmAction int
@@ -46,6 +48,7 @@ const (
 	confirmSaveDNS
 	confirmApplyDNSFile
 	confirmSetupSSH
+	confirmOneShot
 )
 
 // Model is the root Bubble Tea model.
@@ -101,6 +104,12 @@ type Model struct {
 	pendingSSHPub   string
 	pendingSSHMethod string // "local-deb" or "apt" preview
 
+	pendingBoot *bootstrap.Plan
+	bootLog     []string
+	bootScroll  int
+	bootDone    bool
+	bootErr     error
+
 	dnsInputs  []textinput.Model
 	dnsFocus   int
 	dnsPath    string
@@ -134,6 +143,7 @@ var menuItems = []string{
 	"Clear apt sources",
 	"Apply apt sources from file",
 	"Configure SSH server (root key)",
+	"One-shot setup (DNS, apt, bond/vlan, SSH)",
 	"Quit",
 }
 
@@ -201,11 +211,18 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case idleTickMsg:
+		// Keep alive during long one-shot apt/SSH steps.
+		if m.screen == screenBootLog && !m.bootDone {
+			m.touch()
+			return m, tickIdle()
+		}
 		if m.idleTimeout > 0 && time.Since(m.lastActivity) >= m.idleTimeout {
 			m.idleTimedOut = true
 			return m, tea.Quit
 		}
 		return m, tickIdle()
+	case bootLogMsg:
+		return m.handleBootLogMsg(msg)
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -234,6 +251,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateConfirm(msg)
 		case screenMessage:
 			return m.updateMessage(msg)
+		case screenBootLog:
+			return m.updateBootLog(msg)
 		}
 	}
 	return m, nil
@@ -260,6 +279,8 @@ func (m Model) View() string {
 		body = m.viewConfirm()
 	case screenMessage:
 		body = m.viewMessage()
+	case screenBootLog:
+		body = m.viewBootLog()
 	default:
 		body = "Unknown screen"
 	}
@@ -296,6 +317,7 @@ func (m Model) viewFooter() string {
 		screenDeactivate: "Up/Down select  Enter deactivate  Esc back",
 		screenConfirm:    "y confirm  n/Esc cancel",
 		screenMessage:    "Enter/Esc back",
+		screenBootLog:    "Up/Down scroll log  Enter/Esc back (when done)",
 	}
 	h := hints[m.screen]
 	path := subtleStyle.Render(m.cfgPath)
@@ -429,6 +451,8 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.confirm = confirmSetupSSH
 			m.screen = screenConfirm
 		case 11:
+			m.beginOneShotSetup()
+		case 12:
 			return m, tea.Quit
 		}
 	}

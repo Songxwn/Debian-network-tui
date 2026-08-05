@@ -28,6 +28,7 @@ All UI text is English so it works on minimal installs without CJK fonts.
 - IPv6: `disabled` / `dhcp` / `static` / `auto` (`manual` + `accept_ra 1`)
 - DNS via dedicated editor for `/etc/resolv.conf` (nameservers + search)
 - One-click overwrite of `/etc/resolv.conf` from a local file next to the binary
+- One-shot setup: DNS overwrite + clear/apply apt + bond/vlan debs + SSH (with live log)
 - `auto` and `allow-hotplug` toggles
 - Activate / deactivate via `ifup` / `ifdown`
 - Automatic backup before save
@@ -46,8 +47,8 @@ Get binaries from [GitHub Releases](https://github.com/Songxwn/Debian-network-tu
 
 ```bash
 # amd64 example
-tar -xzf debian-network-tui-v0.3.4-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.4-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.5-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.5-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 Pushing a `v*` tag triggers GitHub Actions to build and publish a Release.
@@ -111,13 +112,14 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 9. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
 10. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
 11. **Configure SSH server (root key)** — install `openssh-server` (local `.deb` or apt), enable root key login, import pubkey
-12. **Quit**
+12. **One-shot setup (DNS, apt, bond/vlan, SSH)** — run the above file-based steps in order with a live log screen (requires all local files present)
+13. **Quit**
 
 Place matching `.deb` files in the same directory as `debian-network-tui` before using option 8.
 
-For DNS overwrite (option 3), place beside the binary one of: `resolv.conf`, `dns-resolv.conf`, `dns.conf` (see `examples/resolv.conf`).
+For DNS overwrite (option 3) or one-shot (option 12), place beside the binary one of: `resolv.conf`, `dns-resolv.conf`, `dns.conf` (see `examples/resolv.conf`).
 
-For SSH setup (option 11), place beside the binary:
+For SSH setup (option 11) or one-shot (option 12), place beside the binary:
 
 - `openssh-server_*.deb` (optional; otherwise apt is used)
 - `ssh-root.conf` (optional) with `PubkeyFile=root.pub`

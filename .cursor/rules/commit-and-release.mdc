@@ -1,0 +1,17 @@
+---
+description: After every commit, bump tag, push to GitHub, and publish a release
+alwaysApply: true
+---
+
+# Commit + Release Workflow
+
+Whenever the user asks to commit (or work is ready to ship), do **all** of the following in one go—do not stop at commit only:
+
+1. Commit the changes (follow the repo commit-message style).
+2. Bump the patch version: latest `v*` tag + 1 (e.g. `v0.3.4` → `v0.3.5`), unless the user specifies a version.
+3. Update install examples in `README.md` / `README_ZH.md` to the new version string when they reference a release tarball name.
+4. Create an annotated tag `vX.Y.Z` on the new commit.
+5. `git push origin HEAD` and `git push origin vX.Y.Z` (triggers `.github/workflows/release.yml`).
+6. Wait for the Release workflow to succeed and report the GitHub release URL.
+
+Do **not** wait for a separate “please release” message after a commit request for this repo.
