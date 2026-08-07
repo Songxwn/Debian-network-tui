@@ -202,7 +202,7 @@ iface bond0.100 inet static
     gateway 10.10.10.1
 ```
 
-Requires `ifenslave` (bonding), `vlan`, and optionally `net-tools` on Debian:
+Requires `ifenslave` (bonding), `vlan`, and `net-tools` on Debian:
 
 ```bash
 sudo apt-get install -y ifenslave vlan net-tools
