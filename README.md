@@ -47,8 +47,8 @@ Get binaries and the setup ISO from [GitHub Releases](https://github.com/Songxwn
 
 ```bash
 # amd64 tarball
-tar -xzf debian-network-tui-v0.3.7-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.7-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.8-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.8-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -57,14 +57,14 @@ Each release also publishes `debian-network-tui-<version>.iso` containing:
 
 - `debian-network-tui` (linux amd64) plus other arches under `bin/`
 - Example configs: `resolv.conf`, `sources.list`, `ssh-root.conf`, `root.pub`
-- `packages/README.txt` — where to put `ifenslave` / `vlan` `.deb` files
+- `packages/README.txt` — where to put `ifenslave` / `vlan` / `net-tools` `.deb` files
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.7.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.8.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
-# Edit /root/dntui-setup/root.pub and add ifenslave_*.deb + vlan_*.deb, then:
+# Edit /root/dntui-setup/root.pub and add ifenslave_*.deb + vlan_*.deb + net-tools_*.deb, then:
 cd /root/dntui-setup && sudo ./debian-network-tui
 ```
 
@@ -125,7 +125,7 @@ sudo IDLE_TIMEOUT_SEC=60 debian-network-tui
 5. **Deactivate a connection** — `ifdown <iface>`
 6. **Restart networking** — `systemctl restart networking`
 7. **Clear all connections** — wipe all ifaces except `lo` (backs up first)
-8. **Install ifenslave/vlan (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` next to the binary and `apt-get install -y` them
+8. **Install ifenslave/vlan/net-tools (.deb)** — find `ifenslave_*.deb` / `vlan_*.deb` / `net-tools_*.deb` next to the binary and `apt-get install -y` them
 9. **Clear apt sources** — empty `/etc/apt/sources.list` and remove `sources.list.d` drop-ins (backs up first)
 10. **Apply apt sources from file** — read `sources.list` / `*.list` / `*.sources` next to the binary and install them under `/etc/apt/`
 11. **Configure SSH server (root key)** — install `openssh-server` (local `.deb` or apt), enable root key login, import pubkey
@@ -202,10 +202,10 @@ iface bond0.100 inet static
     gateway 10.10.10.1
 ```
 
-Requires `ifenslave` (bonding) and `vlan` packages on Debian:
+Requires `ifenslave` (bonding), `vlan`, and optionally `net-tools` on Debian:
 
 ```bash
-sudo apt-get install -y ifenslave vlan
+sudo apt-get install -y ifenslave vlan net-tools
 ```
 
 ## Example config (ethernet)

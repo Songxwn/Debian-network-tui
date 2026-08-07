@@ -28,12 +28,12 @@
 - IPv6：`disabled` / `dhcp` / `static` / `auto`
 - 独立编辑 DNS：`/etc/resolv.conf`
 - 一键用本地配置文件覆盖 `/etc/resolv.conf`
-- 一键执行：覆盖 DNS + 清空/应用 apt 源 + 安装 ifenslave/vlan + 配置 SSH（带实时日志）
+- 一键执行：覆盖 DNS + 清空/应用 apt 源 + 安装 ifenslave/vlan/net-tools + 配置 SSH（带实时日志）
 - `auto`、`allow-hotplug`
 - 激活 / 停用：`ifup` / `ifdown`
 - 重启网络服务
 - 清空全部网卡配置（保留 `lo`，先备份）
-- 本地安装 `ifenslave` / `vlan` 的 `.deb`
+- 本地安装 `ifenslave` / `vlan` / `net-tools` 的 `.deb`
 - 清空 / 应用 apt 源（从程序目录读取配置文件）
 - 配置 SSH：安装 openssh-server、允许 root 密钥登录、导入公钥
 - 保存前自动备份；空闲 **65 秒**无操作自动退出
@@ -52,8 +52,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.7-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.7-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.8-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.8-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -62,14 +62,14 @@ sudo install -m 755 debian-network-tui-v0.3.7-linux-amd64 /usr/local/bin/debian-
 
 - `debian-network-tui`（linux amd64）及其它架构（`bin/`）
 - 示例配置：`resolv.conf`、`sources.list`、`ssh-root.conf`、`root.pub`
-- `packages/README.txt` — 说明如何放入 `ifenslave` / `vlan` 的 `.deb`
+- `packages/README.txt` — 说明如何放入 `ifenslave` / `vlan` / `net-tools` 的 `.deb`
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.7.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.8.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
-# 编辑 /root/dntui-setup/root.pub，并放入 ifenslave_*.deb + vlan_*.deb，然后：
+# 编辑 /root/dntui-setup/root.pub，并放入 ifenslave_*.deb + vlan_*.deb + net-tools_*.deb，然后：
 cd /root/dntui-setup && sudo ./debian-network-tui
 ```
 
@@ -128,7 +128,7 @@ sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
 5. **Deactivate a connection** — `ifdown`
 6. **Restart networking** — 重启网络服务
 7. **Clear all connections** — 清空网卡配置（保留 lo）
-8. **Install ifenslave/vlan (.deb)** — 安装本地 deb
+8. **Install ifenslave/vlan/net-tools (.deb)** — 安装本地 deb
 9. **Clear apt sources** — 清空 apt 源
 10. **Apply apt sources from file** — 从文件应用 apt 源
 11. **Configure SSH server (root key)** — 配置 SSH 与 root 密钥登录
@@ -137,17 +137,18 @@ sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
 
 ### 本地文件约定（与二进制同目录）
 
-**一键部署（菜单 12）所需文件：** DNS + APT + Bond/VLAN deb + SSH 公钥（见下方各项）。
+**一键部署（菜单 12）所需文件：** DNS + APT + Bond/VLAN/net-tools deb + SSH 公钥（见下方各项）。
 
 **DNS（菜单 3 / 12）：**
 
 - `resolv.conf` / `dns-resolv.conf` / `dns.conf` → 覆盖 `/etc/resolv.conf`
 - 示例：`examples/resolv.conf`
 
-**Bond/VLAN 包（菜单 8 / 12）：**
+**Bond/VLAN/net-tools 包（菜单 8 / 12）：**
 
 - `ifenslave_*.deb`
 - `vlan_*.deb`
+- `net-tools_*.deb`
 
 **APT 源（菜单 9–10 / 12）：**
 
@@ -283,7 +284,7 @@ iface bond0.100 inet static
 需要软件包：
 
 ```bash
-sudo apt-get install -y ifenslave vlan
+sudo apt-get install -y ifenslave vlan net-tools
 ```
 
 也可在菜单中用本地 `.deb` 安装。

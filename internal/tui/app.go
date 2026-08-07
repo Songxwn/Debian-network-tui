@@ -139,7 +139,7 @@ var menuItems = []string{
 	"Deactivate a connection",
 	"Restart networking",
 	"Clear all connections",
-	"Install ifenslave/vlan (.deb)",
+	"Install ifenslave/vlan/net-tools (.deb)",
 	"Clear apt sources",
 	"Apply apt sources from file",
 	"Configure SSH server (root key)",
@@ -384,18 +384,15 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showMsg("Install failed", err.Error(), screenMenu)
 				return m, nil
 			}
-			if len(found.Ifenslave) == 0 || len(found.VLAN) == 0 {
+			if miss := found.MissingRequired(); len(miss) > 0 {
 				detail := fmt.Sprintf("Searched: %s\n", dir)
-				if len(found.Ifenslave) == 0 {
-					detail += "Missing: ifenslave_*.deb\n"
-				}
-				if len(found.VLAN) == 0 {
-					detail += "Missing: vlan_*.deb\n"
+				for _, p := range miss {
+					detail += "Missing: " + p + "\n"
 				}
 				if n := len(found.Found()); n > 0 {
-					detail += "Partial matches found, but both packages are required."
+					detail += "Partial matches found, but ifenslave, vlan, and net-tools are all required."
 				} else {
-					detail += "Place ifenslave and vlan .deb files next to this binary."
+					detail += "Place ifenslave, vlan, and net-tools .deb files next to this binary."
 				}
 				m.showMsg("Packages not found", detail, screenMenu)
 				return m, nil

@@ -41,6 +41,7 @@ Place local .deb packages here when preparing a custom ISO or working directory:
 
   ifenslave_*.deb
   vlan_*.deb
+  net-tools_*.deb
   openssh-server_*.deb   (optional; otherwise apt is used)
 
 For one-shot setup, copy these .deb files into the same directory as
@@ -59,7 +60,7 @@ Contents
   sources.list         APT sources template
   ssh-root.conf        Points to root.pub
   root.pub             REPLACE with your real OpenSSH public key
-  packages/            Drop ifenslave/vlan .deb here (see packages/README.txt)
+  packages/            Drop ifenslave/vlan/net-tools .deb here (see packages/README.txt)
 
 Quick start (Debian)
 --------------------
@@ -72,10 +73,10 @@ Quick start (Debian)
   cp -a /mnt/dntui/. /root/dntui-setup/
   umount /mnt/dntui
 
-  # Edit configs (especially root.pub), add ifenslave_*.deb + vlan_*.deb
+  # Edit configs (especially root.pub), add local .deb packages
   cd /root/dntui-setup
   # nano root.pub
-  # cp /path/to/ifenslave_*.deb /path/to/vlan_*.deb .
+  # cp /path/to/ifenslave_*.deb /path/to/vlan_*.deb /path/to/net-tools_*.deb .
 
   chmod +x debian-network-tui
   sudo ./debian-network-tui

@@ -31,13 +31,14 @@ func TestPrepareOK(t *testing.T) {
 	mustWrite("sources.list", "deb http://deb.debian.org/debian bookworm main\n")
 	mustWrite("ifenslave_2.deb", "fake")
 	mustWrite("vlan_1.deb", "fake")
+	mustWrite("net-tools_2.deb", "fake")
 	mustWrite("root.pub", "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyForUnitTest only-for-test\n")
 
 	p, err := bootstrap.Prepare(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if p.DNSSrc == "" || len(p.AptCfgs) == 0 || len(p.Debs) != 2 {
+	if p.DNSSrc == "" || len(p.AptCfgs) == 0 || len(p.Debs) != 3 {
 		t.Fatalf("plan incomplete: %+v", p)
 	}
 	if p.SSHPubkey == "" {

@@ -69,16 +69,9 @@ func Prepare(dir string) (*Plan, error) {
 
 	found, err := packages.FindBondVLANDebs(dir)
 	if err != nil {
-		return nil, fmt.Errorf("find bond/vlan debs: %w", err)
+		return nil, fmt.Errorf("find bond/vlan/net-tools debs: %w", err)
 	}
-	if len(found.Ifenslave) == 0 || len(found.VLAN) == 0 {
-		var miss []string
-		if len(found.Ifenslave) == 0 {
-			miss = append(miss, "ifenslave_*.deb")
-		}
-		if len(found.VLAN) == 0 {
-			miss = append(miss, "vlan_*.deb")
-		}
+	if miss := found.MissingRequired(); len(miss) > 0 {
 		return nil, fmt.Errorf("missing packages in %s: %s", dir, strings.Join(miss, ", "))
 	}
 	p.Debs = found.Found()
@@ -175,7 +168,7 @@ func (p *Plan) ExecuteStep(step int) (lines []string, nextStep int, err error) {
 		return lines, nextStep, nil
 
 	case StepDebs:
-		lines = append(lines, fmt.Sprintf("==> [4/%d] Install ifenslave/vlan packages", StepCount))
+		lines = append(lines, fmt.Sprintf("==> [4/%d] Install ifenslave/vlan/net-tools packages", StepCount))
 		for _, d := range p.Debs {
 			lines = append(lines, "    "+filepath.Base(d))
 		}

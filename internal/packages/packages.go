@@ -11,15 +11,17 @@ import (
 
 // DebFindResult holds discovered local .deb packages beside the binary.
 type DebFindResult struct {
-	Dir      string
+	Dir       string
 	Ifenslave []string // absolute paths
-	VLAN     []string
+	VLAN      []string
+	NetTools  []string
 }
 
-// Found returns all discovered package paths.
+// Found returns all discovered package paths (ifenslave, vlan, net-tools).
 func (r DebFindResult) Found() []string {
 	out := append([]string{}, r.Ifenslave...)
 	out = append(out, r.VLAN...)
+	out = append(out, r.NetTools...)
 	return out
 }
 
@@ -36,7 +38,7 @@ func SelfDir() (string, error) {
 	return filepath.Dir(exe), nil
 }
 
-// FindBondVLANDebs searches dir for local ifenslave / vlan .deb packages.
+// FindBondVLANDebs searches dir for local ifenslave / vlan / net-tools .deb packages.
 func FindBondVLANDebs(dir string) (DebFindResult, error) {
 	res := DebFindResult{Dir: dir}
 	entries, err := os.ReadDir(dir)
@@ -56,12 +58,15 @@ func FindBondVLANDebs(dir string) (DebFindResult, error) {
 		switch {
 		case strings.Contains(lower, "ifenslave"):
 			res.Ifenslave = append(res.Ifenslave, abs)
+		case strings.Contains(lower, "net-tools") || strings.Contains(lower, "net_tools"):
+			res.NetTools = append(res.NetTools, abs)
 		case strings.Contains(lower, "vlan"):
 			res.VLAN = append(res.VLAN, abs)
 		}
 	}
 	sort.Strings(res.Ifenslave)
 	sort.Strings(res.VLAN)
+	sort.Strings(res.NetTools)
 	return res, nil
 }
 
@@ -100,7 +105,22 @@ func InstallLocalDebs(debs []string) (string, error) {
 	return msg, nil
 }
 
-// InstallBondVLANFromSelfDir finds and installs ifenslave/vlan debs next to the binary.
+// MissingRequired returns human-readable patterns for required packages that were not found.
+func (r DebFindResult) MissingRequired() []string {
+	var miss []string
+	if len(r.Ifenslave) == 0 {
+		miss = append(miss, "ifenslave_*.deb")
+	}
+	if len(r.VLAN) == 0 {
+		miss = append(miss, "vlan_*.deb")
+	}
+	if len(r.NetTools) == 0 {
+		miss = append(miss, "net-tools_*.deb")
+	}
+	return miss
+}
+
+// InstallBondVLANFromSelfDir finds and installs ifenslave/vlan/net-tools debs next to the binary.
 func InstallBondVLANFromSelfDir() (DebFindResult, string, error) {
 	dir, err := SelfDir()
 	if err != nil {
@@ -110,17 +130,10 @@ func InstallBondVLANFromSelfDir() (DebFindResult, string, error) {
 	if err != nil {
 		return found, "", err
 	}
-	debs := found.Found()
-	if len(debs) == 0 {
-		return found, "", fmt.Errorf("no ifenslave/vlan .deb found in %s", dir)
+	if miss := found.MissingRequired(); len(miss) > 0 {
+		return found, "", fmt.Errorf("missing packages in %s: %s", dir, strings.Join(miss, ", "))
 	}
-	if len(found.Ifenslave) == 0 {
-		return found, "", fmt.Errorf("ifenslave .deb not found in %s (found: %v)", dir, basenames(debs))
-	}
-	if len(found.VLAN) == 0 {
-		return found, "", fmt.Errorf("vlan .deb not found in %s (found: %v)", dir, basenames(debs))
-	}
-	msg, err := InstallLocalDebs(debs)
+	msg, err := InstallLocalDebs(found.Found())
 	return found, msg, err
 }
 

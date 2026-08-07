@@ -29,7 +29,7 @@ func (m *Model) beginOneShotSetup() {
 			err.Error()+"\n\nPlace beside the binary:\n"+
 				"  resolv.conf (or dns.conf)\n"+
 				"  sources.list / *.list / *.sources\n"+
-				"  ifenslave_*.deb + vlan_*.deb\n"+
+				"  ifenslave_*.deb + vlan_*.deb + net-tools_*.deb\n"+
 				"  root.pub (or ssh-root.conf)\n"+
 				"See examples/",
 			screenMenu)

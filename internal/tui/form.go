@@ -1100,7 +1100,7 @@ func (m *Model) backFromConfirm(yes bool) tea.Cmd {
 		}
 		m.bootLog = []string{
 			"Starting one-shot setup…",
-			"Order: DNS → clear apt → apply apt → ifenslave/vlan → SSH",
+			"Order: DNS → clear apt → apply apt → ifenslave/vlan/net-tools → SSH",
 			"",
 		}
 		m.bootScroll = 0
