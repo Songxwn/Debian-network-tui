@@ -42,10 +42,17 @@ Place local .deb packages here when preparing a custom ISO or working directory:
   ifenslave_*.deb
   vlan_*.deb
   net-tools_*.deb
-  openssh-server_*.deb   (optional; otherwise apt is used)
 
-For one-shot setup, copy these .deb files into the same directory as
+  openssh-server_*.deb          (optional; otherwise apt is used)
+  openssh-client_*.deb          (required with local openssh-server)
+  openssh-sftp-server_*.deb
+  runit-helper_*.deb
+  libssl3_*.deb
+  libwrap0_*.deb
+
+For one-shot / SSH setup, copy these .deb files into the same directory as
 debian-network-tui (ISO root), not only into this packages/ folder.
+Use matching suite/version for all OpenSSH-related packages.
 EOF
 
 cat > "${ISO_ROOT}/README.txt" <<EOF

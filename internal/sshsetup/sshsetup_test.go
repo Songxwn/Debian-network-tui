@@ -11,14 +11,61 @@ import (
 
 func TestFindSSHDebs(t *testing.T) {
 	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "openssh-server_9.2p1-2_amd64.deb"), []byte("x"), 0o644)
-	_ = os.WriteFile(filepath.Join(dir, "vlan_1_all.deb"), []byte("x"), 0o644)
+	files := []string{
+		"openssh-server_9.2p1-2+deb12u6_amd64.deb",
+		"openssh-client_9.2p1-2+deb12u6_amd64.deb",
+		"openssh-sftp-server_9.2p1-2+deb12u6_amd64.deb",
+		"runit-helper_2.15.2_all.deb",
+		"libssl3_3.0.16-1~deb12u1_amd64.deb",
+		"libwrap0_7.6.q-32_amd64.deb",
+		"vlan_1_all.deb",
+	}
+	for _, f := range files {
+		_ = os.WriteFile(filepath.Join(dir, f), []byte("x"), 0o644)
+	}
+	bundle, err := sshsetup.FindSSHDebBundle(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bundle.HasServer() || len(bundle.MissingDeps()) != 0 {
+		t.Fatalf("bundle incomplete: %+v missing=%v", bundle, bundle.MissingDeps())
+	}
 	got, err := sshsetup.FindSSHDebs(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || !strings.Contains(got[0], "openssh-server") {
+	if len(got) != 6 {
 		t.Fatalf("got=%v", got)
+	}
+	// Server should be last.
+	if !strings.Contains(got[len(got)-1], "openssh-server") {
+		t.Fatalf("server should be last: %v", got)
+	}
+	// vlan must not be included
+	for _, p := range got {
+		if strings.Contains(p, "vlan") {
+			t.Fatalf("unexpected vlan in %v", got)
+		}
+	}
+}
+
+func TestFindSSHDebsMissingDeps(t *testing.T) {
+	dir := t.TempDir()
+	_ = os.WriteFile(filepath.Join(dir, "openssh-server_9.2_amd64.deb"), []byte("x"), 0o644)
+	bundle, err := sshsetup.FindSSHDebBundle(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	miss := bundle.MissingDeps()
+	if len(miss) != 5 {
+		t.Fatalf("missing=%v", miss)
+	}
+	_, _, err = sshsetup.EnsureOpenSSHInstalled(dir,
+		func([]string) (string, error) { t.Fatal("should not install"); return "", nil },
+		func(string) (string, error) { t.Fatal("should not apt"); return "", nil },
+	)
+	if err == nil || !strings.Contains(err.Error(), "missing dependency") {
+		t.Fatalf("err=%v", err)
 	}
 }
 

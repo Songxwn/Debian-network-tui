@@ -436,15 +436,27 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.showMsg("SSH setup failed", err.Error()+"\n\nSee examples/ssh-root.conf and examples/root.pub", screenMenu)
 				return m, nil
 			}
-			debs, _ := sshsetup.FindSSHDebs(dir)
-			m.pendingSSHDir = dir
-			m.pendingSSHDebs = debs
-			m.pendingSSHPub = rc.PubkeyFile
-			if len(debs) > 0 {
-				m.pendingSSHMethod = "local .deb"
+			bundle, err := sshsetup.FindSSHDebBundle(dir)
+			if err != nil {
+				m.showMsg("SSH setup failed", err.Error(), screenMenu)
+				return m, nil
+			}
+			if bundle.HasServer() {
+				if miss := bundle.MissingDeps(); len(miss) > 0 {
+					m.showMsg("SSH local packages incomplete",
+						fmt.Sprintf("Found openssh-server .deb but missing dependencies in:\n%s\n\n%s\n\nPlace matching .deb files (same suite/version as openssh-server):\n  openssh-client\n  openssh-sftp-server\n  runit-helper\n  libssl3\n  libwrap0",
+							dir, strings.Join(miss, "\n")),
+						screenMenu)
+					return m, nil
+				}
+				m.pendingSSHDebs = bundle.InstallOrder()
+				m.pendingSSHMethod = "local .deb (server + deps)"
 			} else {
+				m.pendingSSHDebs = nil
 				m.pendingSSHMethod = "apt-get install openssh-server"
 			}
+			m.pendingSSHDir = dir
+			m.pendingSSHPub = rc.PubkeyFile
 			m.confirm = confirmSetupSSH
 			m.screen = screenConfirm
 		case 11:

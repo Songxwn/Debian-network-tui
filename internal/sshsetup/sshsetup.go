@@ -24,27 +24,104 @@ type RootConf struct {
 	PubkeyFile string // absolute path to pubkey file
 }
 
-// FindSSHDebs returns openssh-related .deb paths in dir.
+// FindSSHDebs returns openssh-server and its common local dependency .deb paths in dir.
+// Dependency packages (matched by filename):
+//
+//	openssh-client, openssh-sftp-server, runit-helper, libssl3*, libwrap0
+//
+// Order is dependencies first, then openssh-server, so apt can satisfy them together.
 func FindSSHDebs(dir string) ([]string, error) {
+	bundle, err := FindSSHDebBundle(dir)
+	if err != nil {
+		return nil, err
+	}
+	return bundle.InstallOrder(), nil
+}
+
+// SSHDebBundle classifies local SSH-related .deb packages.
+type SSHDebBundle struct {
+	Dir        string
+	Server     []string
+	Client     []string
+	SFTP       []string
+	RunitHelp  []string
+	LibSSL3    []string
+	LibWrap0   []string
+}
+
+// InstallOrder returns dependency debs first, then openssh-server.
+func (b SSHDebBundle) InstallOrder() []string {
+	var out []string
+	out = append(out, b.Client...)
+	out = append(out, b.SFTP...)
+	out = append(out, b.RunitHelp...)
+	out = append(out, b.LibSSL3...)
+	out = append(out, b.LibWrap0...)
+	out = append(out, b.Server...)
+	return out
+}
+
+// HasServer reports whether an openssh-server .deb was found.
+func (b SSHDebBundle) HasServer() bool {
+	return len(b.Server) > 0
+}
+
+// MissingDeps returns required dependency patterns missing when a local server deb is used.
+func (b SSHDebBundle) MissingDeps() []string {
+	var miss []string
+	if len(b.Client) == 0 {
+		miss = append(miss, "openssh-client_*.deb")
+	}
+	if len(b.SFTP) == 0 {
+		miss = append(miss, "openssh-sftp-server_*.deb")
+	}
+	if len(b.RunitHelp) == 0 {
+		miss = append(miss, "runit-helper_*.deb")
+	}
+	if len(b.LibSSL3) == 0 {
+		miss = append(miss, "libssl3_*.deb")
+	}
+	if len(b.LibWrap0) == 0 {
+		miss = append(miss, "libwrap0_*.deb")
+	}
+	return miss
+}
+
+// FindSSHDebBundle scans dir for openssh-server and its local dependency debs.
+func FindSSHDebBundle(dir string) (SSHDebBundle, error) {
+	b := SSHDebBundle{Dir: dir}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", dir, err)
+		return b, fmt.Errorf("read %s: %w", dir, err)
 	}
-	var out []string
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		lower := strings.ToLower(e.Name())
+		name := e.Name()
+		lower := strings.ToLower(name)
 		if !strings.HasSuffix(lower, ".deb") {
 			continue
 		}
-		if strings.Contains(lower, "openssh-server") ||
-			(strings.Contains(lower, "openssh") && strings.Contains(lower, "server")) {
-			out = append(out, filepath.Join(dir, e.Name()))
+		abs := filepath.Join(dir, name)
+		switch {
+		case strings.Contains(lower, "openssh-sftp-server"):
+			b.SFTP = append(b.SFTP, abs)
+		case strings.Contains(lower, "openssh-client"):
+			b.Client = append(b.Client, abs)
+		case strings.Contains(lower, "openssh-server") ||
+			(strings.Contains(lower, "openssh") && strings.Contains(lower, "server") &&
+				!strings.Contains(lower, "client") && !strings.Contains(lower, "sftp")):
+			b.Server = append(b.Server, abs)
+		case strings.Contains(lower, "runit-helper"):
+			b.RunitHelp = append(b.RunitHelp, abs)
+		case strings.Contains(lower, "libssl3"):
+			b.LibSSL3 = append(b.LibSSL3, abs)
+		case strings.Contains(lower, "libwrap0"):
+			b.LibWrap0 = append(b.LibWrap0, abs)
 		}
 	}
-	return out, nil
+	return b, nil
 }
 
 // LoadRootConf reads ssh-root.conf (optional) and resolves the pubkey path.
@@ -139,14 +216,22 @@ func ReadPubkeyLines(path string) ([]string, error) {
 	return keys, nil
 }
 
-// EnsureOpenSSHInstalled installs openssh-server from local debs or apt.
+// EnsureOpenSSHInstalled installs openssh-server (and local deps) from .deb or apt.
+// When a local openssh-server*.deb is present, companion dependency debs in the same
+// directory are installed together (openssh-client, openssh-sftp-server, runit-helper,
+// libssl3, libwrap0). Missing required deps return an error before apt runs.
 func EnsureOpenSSHInstalled(dir string, installDebs func([]string) (string, error), aptInstall func(string) (string, error)) (method string, detail string, err error) {
-	debs, err := FindSSHDebs(dir)
+	bundle, err := FindSSHDebBundle(dir)
 	if err != nil {
 		return "", "", err
 	}
-	if len(debs) > 0 {
-		msg, err := installDebs(debs)
+	if bundle.HasServer() {
+		if miss := bundle.MissingDeps(); len(miss) > 0 {
+			return "local-deb", "", fmt.Errorf(
+				"openssh-server .deb found, but missing dependency packages in %s:\n  %s\nPlace matching .deb files next to openssh-server (same versions as the server package)",
+				dir, strings.Join(miss, "\n  "))
+		}
+		msg, err := installDebs(bundle.InstallOrder())
 		return "local-deb", msg, err
 	}
 	msg, err := aptInstall("openssh-server")

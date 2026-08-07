@@ -52,8 +52,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.8-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.8-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.10-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.10-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -66,7 +66,7 @@ sudo install -m 755 debian-network-tui-v0.3.8-linux-amd64 /usr/local/bin/debian-
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.8.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.10.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
 # 编辑 /root/dntui-setup/root.pub，并放入 ifenslave_*.deb + vlan_*.deb + net-tools_*.deb，然后：
@@ -159,6 +159,12 @@ sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
 **SSH（菜单 11 / 12）：**
 
 - `openssh-server_*.deb`（可选，没有则走 apt）
+- **使用本地 openssh-server 时还需同目录放入依赖包（版本与 server 一致）：**
+  - `openssh-client_*.deb`
+  - `openssh-sftp-server_*.deb`
+  - `runit-helper_*.deb`
+  - `libssl3_*.deb`
+  - `libwrap0_*.deb`
 - `ssh-root.conf`（可选）：
 
 ```ini
@@ -176,23 +182,25 @@ PubkeyFile=root.pub
 flowchart TD
   A[确认执行] --> B[定位程序所在目录]
   B --> C{目录内有 openssh-server*.deb ?}
-  C -->|是| D[apt-get install 本地 .deb]
-  C -->|否| E[apt-get install -y openssh-server]
-  D --> F[读取公钥配置]
-  E --> F
-  F --> G[解析公钥文件]
-  G --> H[写入 sshd drop-in]
-  H --> I[导入 /root/.ssh/authorized_keys]
-  I --> J[systemctl restart ssh]
-  J --> K[完成]
+  C -->|是| D{依赖 .deb 齐全?}
+  D -->|否| X[失败并列出缺失依赖]
+  D -->|是| E[apt-get install 依赖 + openssh-server]
+  C -->|否| F[apt-get install -y openssh-server]
+  E --> G[读取公钥配置]
+  F --> G
+  G --> H[解析公钥文件]
+  H --> I[写入 sshd drop-in]
+  I --> J[导入 /root/.ssh/authorized_keys]
+  J --> K[systemctl restart ssh]
+  K --> L[完成]
 ```
 
 #### 1. 安装 openssh-server
 
 1. 取当前可执行文件所在目录（解析符号链接后）。
-2. 扫描该目录下文件名包含 `openssh-server`（或同时包含 `openssh` 与 `server`）的 `.deb`。
-3. **若找到本地包**：`apt-get install -y --allow-downgrades <deb路径...>`（`DEBIAN_FRONTEND=noninteractive`）。
-4. **若未找到**：`apt-get install -y openssh-server`（依赖当前 apt 源可用）。
+2. 扫描该目录下的 `openssh-server` 及依赖 `.deb`：`openssh-client`、`openssh-sftp-server`、`runit-helper`、`libssl3`、`libwrap0`。
+3. **若找到本地 openssh-server**：依赖必须齐全，然后一次性 `apt-get install -y --allow-downgrades <deb路径...>`（`DEBIAN_FRONTEND=noninteractive`）。
+4. **若未找到 openssh-server**：`apt-get install -y openssh-server`（依赖当前 apt 源可用）。
 
 #### 2. 解析公钥来源
 

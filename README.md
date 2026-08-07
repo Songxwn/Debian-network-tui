@@ -47,8 +47,8 @@ Get binaries and the setup ISO from [GitHub Releases](https://github.com/Songxwn
 
 ```bash
 # amd64 tarball
-tar -xzf debian-network-tui-v0.3.8-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.8-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.10-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.10-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -61,7 +61,7 @@ Each release also publishes `debian-network-tui-<version>.iso` containing:
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.8.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.10.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
 # Edit /root/dntui-setup/root.pub and add ifenslave_*.deb + vlan_*.deb + net-tools_*.deb, then:
@@ -139,6 +139,12 @@ For DNS overwrite (option 3) or one-shot (option 12), place beside the binary on
 For SSH setup (option 11) or one-shot (option 12), place beside the binary:
 
 - `openssh-server_*.deb` (optional; otherwise apt is used)
+- **Required with local openssh-server** (same suite/version):
+  - `openssh-client_*.deb`
+  - `openssh-sftp-server_*.deb`
+  - `runit-helper_*.deb`
+  - `libssl3_*.deb`
+  - `libwrap0_*.deb`
 - `ssh-root.conf` (optional) with `PubkeyFile=root.pub`
 - `root.pub` — your OpenSSH public key (see `examples/`)
 
@@ -150,18 +156,20 @@ After confirming **Configure SSH server (root key)**, the tool runs this pipelin
 flowchart TD
   A[Confirm] --> B[Resolve binary directory]
   B --> C{openssh-server*.deb present?}
-  C -->|yes| D[apt-get install local .deb]
-  C -->|no| E[apt-get install -y openssh-server]
-  D --> F[Resolve pubkey via ssh-root.conf]
-  E --> F
-  F --> G[Parse pubkey lines]
-  G --> H[Write sshd drop-in]
-  H --> I[Append /root/.ssh/authorized_keys]
-  I --> J[systemctl restart ssh]
-  J --> K[Done]
+  C -->|yes| D{All dependency .debs present?}
+  D -->|no| X[Fail: list missing deps]
+  D -->|yes| E[apt-get install deps + openssh-server .debs]
+  C -->|no| F[apt-get install -y openssh-server]
+  E --> G[Resolve pubkey via ssh-root.conf]
+  F --> G
+  G --> H[Parse pubkey lines]
+  H --> I[Write sshd drop-in]
+  I --> J[Append /root/.ssh/authorized_keys]
+  J --> K[systemctl restart ssh]
+  K --> L[Done]
 ```
 
-1. **Install** — scan the binary directory for `openssh-server*.deb`; if found, `apt-get install` those files; otherwise `apt-get install -y openssh-server`.
+1. **Install** — scan the binary directory for `openssh-server*.deb`. If found, also require and install local dependency `.deb` files (`openssh-client`, `openssh-sftp-server`, `runit-helper`, `libssl3`, `libwrap0`) in one `apt-get install`; otherwise `apt-get install -y openssh-server`.
 2. **Pubkey** — read optional `ssh-root.conf` (`PubkeyFile=...`), else try `root.pub` / `id_rsa.pub` / `id_ed25519.pub` / `authorized_keys`. Only valid OpenSSH pubkey lines are used.
 3. **sshd** — write `/etc/ssh/sshd_config.d/99-debian-network-tui-rootkey.conf` with `PermitRootLogin prohibit-password`, `PubkeyAuthentication yes`, `AuthorizedKeysFile .ssh/authorized_keys` (root key-only login; no password).
 4. **authorized_keys** — ensure `/root/.ssh` (`700`), append missing keys to `/root/.ssh/authorized_keys` (`600`), never wipe existing keys.

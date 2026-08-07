@@ -81,11 +81,18 @@ func Prepare(dir string) (*Plan, error) {
 		return nil, fmt.Errorf("SSH pubkey: %w", err)
 	}
 	p.SSHPubkey = rc.PubkeyFile
-	debs, _ := sshsetup.FindSSHDebs(dir)
-	p.SSHDebs = debs
-	if len(debs) > 0 {
-		p.SSHMethod = "local .deb"
+	bundle, err := sshsetup.FindSSHDebBundle(dir)
+	if err != nil {
+		return nil, fmt.Errorf("find SSH debs: %w", err)
+	}
+	if bundle.HasServer() {
+		if miss := bundle.MissingDeps(); len(miss) > 0 {
+			return nil, fmt.Errorf("SSH local debs incomplete in %s:\n  %s", dir, strings.Join(miss, "\n  "))
+		}
+		p.SSHDebs = bundle.InstallOrder()
+		p.SSHMethod = "local .deb (server + deps)"
 	} else {
+		p.SSHDebs = nil
 		p.SSHMethod = "apt-get install openssh-server"
 	}
 
