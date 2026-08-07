@@ -47,8 +47,8 @@ Get binaries and the setup ISO from [GitHub Releases](https://github.com/Songxwn
 
 ```bash
 # amd64 tarball
-tar -xzf debian-network-tui-v0.3.10-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.10-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.11-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.11-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -61,7 +61,7 @@ Each release also publishes `debian-network-tui-<version>.iso` containing:
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.10.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.11.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
 # Edit /root/dntui-setup/root.pub and add ifenslave_*.deb + vlan_*.deb + net-tools_*.deb, then:
@@ -100,7 +100,7 @@ Override config path (for testing):
 sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 ```
 
-Idle timeout: exits after **65 seconds** without keyboard input.
+Idle timeout: exits after **300 seconds** without keyboard input.
 Override with `IDLE_TIMEOUT_SEC` (set `0` to disable):
 
 ```bash

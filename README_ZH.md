@@ -36,7 +36,7 @@
 - 本地安装 `ifenslave` / `vlan` / `net-tools` 的 `.deb`
 - 清空 / 应用 apt 源（从程序目录读取配置文件）
 - 配置 SSH：安装 openssh-server、允许 root 密钥登录、导入公钥
-- 保存前自动备份；空闲 **65 秒**无操作自动退出
+- 保存前自动备份；空闲 **300 秒**无操作自动退出
 
 不依赖 NetworkManager，适合服务器与最小化安装。
 
@@ -52,8 +52,8 @@
 
 ```bash
 # amd64 示例（版本号按 Release 实际修改）
-tar -xzf debian-network-tui-v0.3.10-linux-amd64.tar.gz
-sudo install -m 755 debian-network-tui-v0.3.10-linux-amd64 /usr/local/bin/debian-network-tui
+tar -xzf debian-network-tui-v0.3.11-linux-amd64.tar.gz
+sudo install -m 755 debian-network-tui-v0.3.11-linux-amd64 /usr/local/bin/debian-network-tui
 ```
 
 ### Setup ISO
@@ -66,7 +66,7 @@ sudo install -m 755 debian-network-tui-v0.3.10-linux-amd64 /usr/local/bin/debian
 
 ```bash
 mkdir -p /mnt/dntui /root/dntui-setup
-mount -o loop debian-network-tui-v0.3.10.iso /mnt/dntui
+mount -o loop debian-network-tui-v0.3.11.iso /mnt/dntui
 cp -a /mnt/dntui/. /root/dntui-setup/
 umount /mnt/dntui
 # 编辑 /root/dntui-setup/root.pub，并放入 ifenslave_*.deb + vlan_*.deb + net-tools_*.deb，然后：
@@ -104,7 +104,7 @@ sudo INTERFACES_FILE=/tmp/interfaces debian-network-tui
 sudo RESOLV_CONF=/tmp/resolv.conf debian-network-tui
 ```
 
-空闲超时默认 65 秒，可用环境变量调整（`0` 关闭）：
+空闲超时默认 300 秒，可用环境变量调整（`0` 关闭）：
 
 ```bash
 sudo IDLE_TIMEOUT_SEC=120 debian-network-tui
